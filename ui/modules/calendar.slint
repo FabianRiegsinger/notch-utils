@@ -1,0 +1,85 @@
+import { Palette, Pill } from "../components.slint";
+
+export struct CalEvent {
+    time: string,
+    title: string,
+    location: string,
+    // Happening right now.
+    now: bool,
+}
+
+export global CalState {
+    in property <[CalEvent]> today;
+    in property <[CalEvent]> tomorrow;
+    in property <bool> configured;
+    in property <bool> loading;
+    in property <string> error;
+    callback refresh();
+}
+
+component Row inherits Rectangle {
+    in property <CalEvent> ev;
+    height: 38px;
+    border-radius: 10px;
+    background: root.ev.now ? Palette.accent.with-alpha(0.25) : Palette.surface;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 10px;
+        Rectangle {
+            width: 3px;
+            y: 8px;
+            height: parent.height - 16px;
+            border-radius: 1.5px;
+            background: Palette.accent;
+        }
+        Text { text: root.ev.time; color: Palette.fg-dim; font-size: 11px; vertical-alignment: center; min-width: 78px; }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Text { text: root.ev.title; color: Palette.fg; font-size: 12px; overflow: elide; }
+            if root.ev.location != "": Text { text: root.ev.location; color: Palette.fg-dim; font-size: 10px; overflow: elide; }
+        }
+    }
+}
+
+component Day inherits VerticalLayout {
+    in property <string> title;
+    in property <[CalEvent]> events;
+    spacing: 4px;
+    Text { text: root.title; color: Palette.fg-dim; font-size: 11px; }
+    if root.events.length == 0: Text { text: "Nothing planned"; color: Palette.fg-dim; font-size: 12px; }
+    for e in root.events: Row { ev: e; }
+}
+
+export component CalendarView inherits VerticalLayout {
+    spacing: 8px;
+
+    if !CalState.configured: Text {
+        vertical-stretch: 1;
+        text: "Add ICS calendar links under [modules.calendar] urls in config.toml\n(Google: Settings → your calendar → \"Secret address in iCal format\").";
+        color: Palette.fg-dim;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        wrap: word-wrap;
+    }
+
+    if CalState.configured: Flickable {
+        vertical-stretch: 1;
+        content-height: days.preferred-height;
+        days := VerticalLayout {
+            spacing: 10px;
+            alignment: start;
+            Day { title: "Today"; events: CalState.today; }
+            Day { title: "Tomorrow"; events: CalState.tomorrow; }
+            if CalState.error != "": Text { text: CalState.error; color: #ff453a; font-size: 11px; wrap: word-wrap; }
+        }
+    }
+
+    if CalState.configured: HorizontalLayout {
+        alignment: end;
+        if CalState.loading: Text { text: "Updating…"; color: Palette.fg-dim; font-size: 11px; vertical-alignment: center; }
+        Pill { text: "Refresh"; clicked => { CalState.refresh(); } }
+    }
+}

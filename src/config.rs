@@ -143,6 +143,25 @@ pub struct Modules {
     pub stats: Stats,
     pub clipboard: Clipboard,
     pub hud: Hud,
+    pub calendar: Calendar,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Calendar {
+    /// ICS subscription URLs (`https://` or `webcal://`). They are secrets: anyone with the
+    /// link can read the calendar.
+    pub urls: Vec<String>,
+    pub refresh_minutes: u64,
+}
+
+impl Default for Calendar {
+    fn default() -> Self {
+        Self {
+            urls: vec![],
+            refresh_minutes: 15,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

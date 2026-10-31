@@ -333,7 +333,10 @@ impl Notch {
         }
         self.ui.set_shape_width(w);
         self.ui.set_shape_height(h);
-        if new == State::Expanded {
+        if new == State::Expanded && old != State::Expanded {
+            // An inactive accessory app loses key focus right away (-> FocusLost -> collapse)
+            // when opened by hotkey or --toggle; activating it keeps the panel open and typable.
+            crate::platform::activate_app();
             self.ui.window().with_winit_window(|w| w.focus_window());
         }
     }
