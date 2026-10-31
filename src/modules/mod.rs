@@ -3,6 +3,7 @@
 
 mod calc;
 mod clipboard;
+mod hud;
 mod stats;
 mod timer;
 
@@ -19,6 +20,18 @@ pub struct Ctx {
     pub alert: Rc<dyn Fn()>,
     /// Close the notch (e.g. after copying, so the user can paste).
     pub collapse: Rc<dyn Fn()>,
+    /// Flash a short HUD in the peek area (volume, battery).
+    pub hud: Rc<dyn Fn(Hud)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Hud {
+    pub icon: &'static str,
+    /// 0..1 shows a bar.
+    pub level: Option<f32>,
+    pub text: String,
+    /// Shown in red.
+    pub warn: bool,
 }
 
 pub trait Module {
@@ -41,6 +54,10 @@ pub trait Module {
     }
     /// Config loaded or changed.
     fn config_changed(&self, _cfg: &Config) {}
+    /// False for modules that only show in the peek (no tab).
+    fn has_view(&self) -> bool {
+        true
+    }
 }
 
 pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
@@ -48,6 +65,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         timer::Timer::new(ctx.clone()),
         calc::Calc::new(ctx.clone()),
         stats::Stats::new(ctx.clone()),
-        clipboard::ClipboardModule::new(ctx),
+        clipboard::ClipboardModule::new(ctx.clone()),
+        hud::HudModule::new(ctx),
     ]
 }

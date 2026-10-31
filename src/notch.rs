@@ -20,6 +20,8 @@ pub struct Notch {
     ui: NotchWindow,
     cfg: Rc<RefCell<Config>>,
     state: Cell<State>,
+    /// Pointer over the window (OS enter/leave), so a HUD doesn't collapse under it.
+    hovered: Cell<bool>,
     /// `None` = main screen; `Some(i)` = platform screen index.
     screen: Cell<Option<usize>>,
     leave_timer: slint::Timer,
@@ -42,6 +44,7 @@ impl Notch {
             ui,
             cfg,
             state: Cell::new(State::Collapsed),
+            hovered: Cell::new(false),
             screen: Cell::new(None),
             leave_timer: slint::Timer::default(),
             shrink_timer: slint::Timer::default(),
@@ -67,10 +70,14 @@ impl Notch {
             let mut result = EventResult::Propagate;
             with(&weak, |n| match ev {
                 WindowEvent::CursorEntered { .. } => {
+                    n.hovered.set(true);
                     n.leave_timer.stop();
                     n.handle(Event::PointerEnter);
                 }
-                WindowEvent::CursorLeft { .. } => n.start_leave_timer(),
+                WindowEvent::CursorLeft { .. } => {
+                    n.hovered.set(false);
+                    n.start_leave_timer()
+                }
                 WindowEvent::Focused(false) => n.handle(Event::FocusLost),
                 WindowEvent::ThemeChanged(_) => n.apply_appearance(),
                 WindowEvent::KeyboardInput { event, .. }
@@ -159,6 +166,21 @@ impl Notch {
             self.state.set(new);
             self.apply(old, new);
             (self.on_change)();
+        }
+    }
+
+    pub fn hovered(&self) -> bool {
+        self.hovered.get()
+    }
+
+    /// Show (`Some`) or clear (`None`) the HUD in the peek area.
+    pub fn set_hud(&self, hud: Option<&crate::modules::Hud>) {
+        self.ui.set_hud_active(hud.is_some());
+        if let Some(h) = hud {
+            self.ui.set_hud_icon(h.icon.into());
+            self.ui.set_hud_level(h.level.unwrap_or(-1.0));
+            self.ui.set_hud_text(h.text.as_str().into());
+            self.ui.set_hud_warn(h.warn);
         }
     }
 

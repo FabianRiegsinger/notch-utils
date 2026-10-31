@@ -206,9 +206,9 @@ impl Module for Timer {
     fn peek(&self) -> Option<String> {
         let c = self.clock.borrow();
         if c.finished {
-            Some("⏱  Time's up".into())
+            Some("Time's up".into())
         } else if c.running() {
-            Some(format!("⏱  {}", format(c.shown(Instant::now()))))
+            Some(format!("Timer  {}", format(c.shown(Instant::now()))))
         } else {
             None
         }

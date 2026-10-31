@@ -121,7 +121,7 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             mode: LayoutMode::default(),
-            modules: ["timer", "calc", "stats", "clipboard"]
+            modules: ["timer", "calc", "stats", "clipboard", "shelf", "hud"]
                 .map(String::from)
                 .to_vec(),
         }
@@ -142,6 +142,23 @@ pub enum LayoutMode {
 pub struct Modules {
     pub stats: Stats,
     pub clipboard: Clipboard,
+    pub hud: Hud,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Hud {
+    pub volume: bool,
+    pub battery: bool,
+}
+
+impl Default for Hud {
+    fn default() -> Self {
+        Self {
+            volume: true,
+            battery: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -229,7 +246,11 @@ mod tests {
         assert_eq!(c.behavior.open_mode, OpenMode::ClickOnly);
         assert_eq!(c.behavior.collapse_delay_ms, 300);
         assert_eq!(c.layout.mode, LayoutMode::Grid);
-        assert_eq!(c.layout.modules, ["timer", "calc", "stats", "clipboard"]);
+        assert_eq!(
+            c.layout.modules,
+            ["timer", "calc", "stats", "clipboard", "shelf", "hud"]
+        );
+        assert!(c.modules.hud.volume && c.modules.hud.battery);
         assert_eq!(c.modules.clipboard.max_entries, 50);
         assert_eq!(c.display.target, DisplayTarget::Main);
     }

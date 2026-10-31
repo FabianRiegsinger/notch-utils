@@ -18,6 +18,7 @@ use std::time::Duration;
 
 const RELOAD_DEBOUNCE: Duration = Duration::from_millis(200);
 const FOLLOW_MOUSE_POLL: Duration = Duration::from_millis(400);
+const HUD_TIME: Duration = Duration::from_millis(1500);
 
 thread_local! {
     static APP: RefCell<Weak<App>> = RefCell::default();
@@ -37,6 +38,7 @@ pub struct App {
     /// Created once the event loop runs, so OS backends find a live app / message loop.
     hotkey: std::cell::OnceCell<Hotkey>,
     reload_timer: slint::Timer,
+    hud_timer: slint::Timer,
     follow_timer: slint::Timer,
 }
 
@@ -47,7 +49,7 @@ impl App {
         error: String,
     ) -> Result<Rc<Self>, slint::PlatformError> {
         let app = Rc::new_cyclic(|me: &Weak<App>| {
-            let (a, b, c) = (me.clone(), me.clone(), me.clone());
+            let (a, b, c, d) = (me.clone(), me.clone(), me.clone(), me.clone());
             let ctx = modules::Ctx {
                 peek_changed: Rc::new(move || {
                     if let Some(app) = a.upgrade() {
@@ -57,6 +59,11 @@ impl App {
                 alert: Rc::new(move || {
                     if let Some(app) = b.upgrade() {
                         app.alert()
+                    }
+                }),
+                hud: Rc::new(move |h| {
+                    if let Some(app) = d.upgrade() {
+                        app.hud(h)
                     }
                 }),
                 collapse: Rc::new(move || {
@@ -78,6 +85,7 @@ impl App {
                 settings: RefCell::default(),
                 hotkey: std::cell::OnceCell::new(),
                 reload_timer: slint::Timer::default(),
+                hud_timer: slint::Timer::default(),
                 follow_timer: slint::Timer::default(),
             }
         });
@@ -164,6 +172,7 @@ impl App {
         let tabs: Vec<ModuleTab> = self
             .enabled()
             .iter()
+            .filter(|m| m.has_view())
             .map(|m| ModuleTab {
                 id: m.id().into(),
                 title: m.title().into(),
@@ -332,6 +341,26 @@ impl App {
         for n in notches.iter() {
             n.set_peek_text(&text);
         }
+    }
+
+    /// Flash a HUD for HUD_TIME; repeated calls (e.g. holding a volume key) extend it.
+    fn hud(&self, h: crate::modules::Hud) {
+        for n in self.notches.borrow().iter() {
+            n.set_hud(Some(&h));
+            n.handle(Event::Hud);
+        }
+        let me = self.me.clone();
+        self.hud_timer
+            .start(slint::TimerMode::SingleShot, HUD_TIME, move || {
+                let Some(app) = me.upgrade() else { return };
+                for n in app.notches.borrow().iter() {
+                    if !n.hovered() {
+                        n.handle(Event::HudTimeout);
+                    }
+                    n.set_hud(None);
+                }
+                app.refresh_peek();
+            });
     }
 
     fn alert(&self) {

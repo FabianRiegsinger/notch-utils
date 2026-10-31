@@ -22,6 +22,12 @@ pub enum Event {
     FocusLost,
     /// A module wants attention (e.g. timer finished): peek if collapsed.
     Alert,
+    /// Short HUD message (volume, battery): peek if collapsed.
+    Hud,
+    /// HUD display time over; the app sends it only while the pointer is outside.
+    HudTimeout,
+    /// Files dragged over the notch: open so they can be dropped on the shelf.
+    FileHover,
 }
 
 pub fn next(state: State, event: Event, mode: OpenMode) -> State {
@@ -40,8 +46,11 @@ pub fn next(state: State, event: Event, mode: OpenMode) -> State {
         (Escape, _) => Collapsed,
         (FocusLost, _) if state == Expanded => Collapsed,
         (FocusLost, _) => state,
-        (Alert, _) if state == Collapsed => Peek,
-        (Alert, _) => state,
+        (Alert | Hud, _) if state == Collapsed => Peek,
+        (Alert | Hud, _) => state,
+        (HudTimeout, _) if state == Peek => Collapsed,
+        (HudTimeout, _) => state,
+        (FileHover, _) => Expanded,
     }
 }
 
@@ -85,6 +94,24 @@ mod tests {
             assert_eq!(next(Peek, FocusLost, m), Peek);
             assert_eq!(next(Collapsed, Alert, m), Peek);
             assert_eq!(next(Expanded, Alert, m), Expanded);
+        }
+    }
+
+    #[test]
+    fn hud_peeks_briefly_and_never_closes_an_open_panel() {
+        for m in [PeekThenClick, HoverFull, ClickOnly] {
+            assert_eq!(next(Collapsed, Hud, m), Peek);
+            assert_eq!(next(Peek, HudTimeout, m), Collapsed);
+            assert_eq!(next(Expanded, Hud, m), Expanded);
+            assert_eq!(next(Expanded, HudTimeout, m), Expanded);
+        }
+    }
+
+    #[test]
+    fn file_hover_opens_in_every_mode() {
+        for m in [PeekThenClick, HoverFull, ClickOnly] {
+            assert_eq!(next(Collapsed, FileHover, m), Expanded);
+            assert_eq!(next(Peek, FileHover, m), Expanded);
         }
     }
 }

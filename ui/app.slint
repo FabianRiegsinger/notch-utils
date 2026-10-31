@@ -38,6 +38,12 @@ export component NotchWindow inherits Window {
     // Height hidden by the camera housing; content starts below it.
     in property <length> top-inset: 0px;
     in property <string> peek-text;
+    // HUD (volume, battery) replaces the peek text while active.
+    in property <bool> hud-active;
+    in property <string> hud-icon;
+    in property <float> hud-level: -1; // 0..1 for a bar, negative = no bar
+    in property <string> hud-text;
+    in property <bool> hud-warn;
     in property <[ModuleTab]> modules;
     in property <bool> grid;
     in-out property <int> active-tab;
@@ -63,7 +69,49 @@ export component NotchWindow inherits Window {
             clicked => { root.clicked(); }
         }
 
-        if root.state == NotchState.peek: Text {
+        if root.state == NotchState.peek && root.hud-active: HorizontalLayout {
+            y: root.top-inset;
+            height: parent.height - root.top-inset;
+            width: parent.width;
+            padding-left: 18px;
+            padding-right: 18px;
+            spacing: 10px;
+            Image {
+                width: 18px;
+                image-fit: contain;
+                colorize: root.hud-warn ? #ff453a : Palette.fg;
+                source: root.hud-icon == "muted" ? @image-url("../assets/icons/muted.svg")
+                    : root.hud-icon == "bolt" ? @image-url("../assets/icons/bolt.svg")
+                    : root.hud-icon == "battery" ? @image-url("../assets/icons/battery.svg")
+                    : root.hud-icon == "battery-low" ? @image-url("../assets/icons/battery-low.svg")
+                    : root.hud-icon == "timer" ? @image-url("../assets/icons/timer.svg")
+                    : @image-url("../assets/icons/volume.svg");
+            }
+            if root.hud-level >= 0: Rectangle {
+                y: (parent.height - self.height) / 2;
+                height: 6px;
+                horizontal-stretch: 1;
+                border-radius: 3px;
+                background: Palette.surface-hover;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * clamp(root.hud-level, 0, 1);
+                    border-radius: 3px;
+                    background: root.hud-warn ? #ff453a : Palette.fg;
+                    animate width { duration: 120ms; }
+                }
+            }
+            Text {
+                text: root.hud-text;
+                color: root.hud-warn ? #ff453a : Palette.fg;
+                font-size: 13px;
+                vertical-alignment: center;
+                horizontal-stretch: root.hud-level >= 0 ? 0 : 1;
+                horizontal-alignment: root.hud-level >= 0 ? right : left;
+            }
+        }
+
+        if root.state == NotchState.peek && !root.hud-active: Text {
             y: root.top-inset;
             height: parent.height - root.top-inset;
             width: parent.width;
