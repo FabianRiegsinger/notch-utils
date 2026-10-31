@@ -6,7 +6,7 @@ with [Slint](https://slint.dev).
 
 - macOS: sits exactly over the hardware notch (or a pill on Macs/displays without one)
 - Windows / Linux: a pill at the top center that expands like the notch
-- ~0% CPU while idle, ~30–50 MB memory
+- ~0% CPU while idle, ~35 MB memory (software renderer; GPU renderer optional)
 
 ## Use
 
@@ -43,6 +43,7 @@ theme = "black"                 # black | system | custom
 accent = "#0A84FF"              # used with theme = "custom"
 expanded_width = 640
 expanded_height = 300
+renderer = "software"           # software (~35 MB) | gpu (smoother animations, ~230 MB); restart to apply
 
 [layout]
 mode = "tabs"                   # tabs | grid

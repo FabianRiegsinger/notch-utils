@@ -37,6 +37,9 @@ export component SettingsWindow inherits Window {
     in-out property <int> layout-mode;
     in-out property <[ModuleEntry]> modules;
     in-out property <int> stats-view;
+    in-out property <int> renderer;
+    // Renderer as of startup, to tell the user a restart is pending.
+    in-out property <int> renderer-at-start: -1;
     in-out property <int> clip-max;
     in-out property <bool> clip-persist;
     in property <string> error;
@@ -139,6 +142,19 @@ export component SettingsWindow inherits Window {
                             text <=> root.accent;
                             accepted => { root.changed(); }
                         }
+                    }
+                    Row {
+                        label: "Renderer";
+                        ComboBox {
+                            model: ["Software (low memory)", "GPU (smoother animations)"];
+                            current-index <=> root.renderer;
+                            selected => { root.changed(); }
+                        }
+                    }
+                    if root.renderer-at-start >= 0 && root.renderer != root.renderer-at-start: Text {
+                        text: "Takes effect after restarting notch-utils.";
+                        font-size: 11px;
+                        opacity: 0.7;
                     }
                     Row {
                         label: "Panel size";

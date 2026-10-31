@@ -361,6 +361,10 @@ impl App {
     fn create_settings(&self) -> Result<SettingsWindow, slint::PlatformError> {
         let ui = SettingsWindow::new()?;
         ui.set_config_path(self.cfg_path.display().to_string().into());
+        ui.set_renderer_at_start(match self.cfg.borrow().appearance.renderer {
+            crate::config::Renderer::Software => 0,
+            crate::config::Renderer::Gpu => 1,
+        });
         let me = self.me.clone();
         let with = move |f: fn(&App, &SettingsWindow)| {
             let me = me.clone();

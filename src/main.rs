@@ -65,6 +65,7 @@ fn main() -> anyhow::Result<()> {
 
     slint::BackendSelector::new()
         .backend_name("winit".into())
+        .renderer_name(cfg.appearance.renderer.slint_name().into())
         .with_winit_event_loop_builder(event_loop)
         .with_winit_window_attributes_hook(|attrs| {
             #[cfg(target_os = "windows")]

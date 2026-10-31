@@ -64,6 +64,8 @@ pub struct Appearance {
     pub accent: String,
     pub expanded_width: u32,
     pub expanded_height: u32,
+    /// Read at startup only.
+    pub renderer: Renderer,
 }
 
 impl Default for Appearance {
@@ -73,6 +75,7 @@ impl Default for Appearance {
             accent: "#0A84FF".into(),
             expanded_width: 640,
             expanded_height: 300,
+            renderer: Renderer::default(),
         }
     }
 }
@@ -84,6 +87,26 @@ pub enum Theme {
     Black,
     System,
     Custom,
+}
+
+/// Software: ~35 MB, a bit more CPU while animating. GPU (OpenGL via femtovg): less CPU
+/// while animating, but a ~230 MB driver-init peak and higher steady memory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Renderer {
+    #[default]
+    Software,
+    Gpu,
+}
+
+impl Renderer {
+    /// Slint renderer name.
+    pub fn slint_name(self) -> &'static str {
+        match self {
+            Renderer::Software => "software",
+            Renderer::Gpu => "femtovg",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -220,6 +243,9 @@ mod tests {
         assert_eq!(c.modules.stats.view, StatsView::Detailed);
         assert!(c.modules.clipboard.persist);
         assert_eq!(c.modules.clipboard.max_entries, 50);
+        assert_eq!(c.appearance.renderer, Renderer::Software);
+        let g = Config::parse("[appearance]\nrenderer = \"gpu\"").unwrap();
+        assert_eq!(g.appearance.renderer.slint_name(), "femtovg");
     }
 
     #[test]

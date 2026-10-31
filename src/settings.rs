@@ -1,6 +1,6 @@
 //! Maps `Config` to and from the settings window. Enum ↔ ComboBox index tables live here.
 
-use crate::config::{Config, DisplayTarget, LayoutMode, OpenMode, StatsView, Theme};
+use crate::config::{Config, DisplayTarget, LayoutMode, OpenMode, Renderer, StatsView, Theme};
 use crate::modules::Module;
 use crate::{ModuleEntry, SettingsWindow};
 use slint::{Model, VecModel};
@@ -18,6 +18,7 @@ const DISPLAY: [DisplayTarget; 3] = [
 ];
 const THEME: [Theme; 3] = [Theme::Black, Theme::System, Theme::Custom];
 const LAYOUT: [LayoutMode; 2] = [LayoutMode::Tabs, LayoutMode::Grid];
+const RENDERER: [Renderer; 2] = [Renderer::Software, Renderer::Gpu];
 const STATS_VIEW: [StatsView; 2] = [StatsView::Graphs, StatsView::Detailed];
 
 fn index<T: PartialEq>(table: &[T], v: &T) -> i32 {
@@ -61,6 +62,7 @@ pub fn to_ui(ui: &SettingsWindow, cfg: &Config, all: &[Rc<dyn Module>]) {
     ui.set_expanded_width(cfg.appearance.expanded_width as i32);
     ui.set_expanded_height(cfg.appearance.expanded_height as i32);
     ui.set_layout_mode(index(&LAYOUT, &cfg.layout.mode));
+    ui.set_renderer(index(&RENDERER, &cfg.appearance.renderer));
     ui.set_modules(Rc::new(VecModel::from(module_entries(cfg, all))).into());
     ui.set_stats_view(index(&STATS_VIEW, &cfg.modules.stats.view));
     ui.set_clip_max(cfg.modules.clipboard.max_entries.min(500) as i32);
@@ -80,6 +82,7 @@ pub fn from_ui(ui: &SettingsWindow, base: &Config) -> Config {
     c.appearance.expanded_width = ui.get_expanded_width().max(0) as u32;
     c.appearance.expanded_height = ui.get_expanded_height().max(0) as u32;
     c.layout.mode = pick(&LAYOUT, ui.get_layout_mode());
+    c.appearance.renderer = pick(&RENDERER, ui.get_renderer());
     c.layout.modules = ui
         .get_modules()
         .iter()
