@@ -1,6 +1,6 @@
-import { Palette, Icon, Card } from "../components.slint";
+import { Palette, Icon, Card, Ring } from "../components.slint";
 import { TimerState } from "timer.slint";
-import { CalState } from "calendar.slint";
+import { CalState, WeekStrip } from "calendar.slint";
 import { StatsState } from "stats.slint";
 import { AiState } from "ai.slint";
 
@@ -9,38 +9,6 @@ export global HomeState {
     in property <bool> has-battery;
     in property <int> battery-pct;
     in property <bool> charging;
-}
-
-// Circular progress from 12 o'clock, clockwise.
-export component Ring inherits Rectangle {
-    in property <float> progress;
-    in property <color> tint: Palette.orange;
-    in property <length> thickness: 5px;
-    property <float> size: self.width / 1px;
-    property <float> r: (self.size - self.thickness / 1px) / 2;
-    property <float> c: self.size / 2;
-    property <float> a: clamp(root.progress, 0.0005, 0.9995) * 360;
-    Path {
-        width: 100%;
-        height: 100%;
-        viewbox-width: root.size;
-        viewbox-height: root.size;
-        stroke: Palette.surface-hover;
-        stroke-width: root.thickness;
-        commands: "M " + root.c + " " + (root.c - root.r) + " A " + root.r + " " + root.r + " 0 1 1 " + (root.c - 0.01) + " " + (root.c - root.r);
-    }
-    Path {
-        width: 100%;
-        height: 100%;
-        viewbox-width: root.size;
-        viewbox-height: root.size;
-        stroke: root.tint;
-        stroke-width: root.thickness;
-        commands: "M " + root.c + " " + (root.c - root.r) + " A " + root.r + " " + root.r + " 0 "
-            + (root.a > 180 ? "1" : "0") + " 1 "
-            + (root.c + root.r * sin(root.a * 1deg)) + " " + (root.c - root.r * cos(root.a * 1deg));
-    }
-    @children
 }
 
 component RoundButton inherits Rectangle {
@@ -79,14 +47,6 @@ component MiniBar inherits VerticalLayout {
             background: root.pct >= 90 ? Palette.red : Palette.purple;
         }
     }
-}
-
-component Dot inherits Rectangle {
-    in property <color> tint;
-    width: 4px;
-    height: 4px;
-    border-radius: 2px;
-    background: root.tint;
 }
 
 export component HomeView inherits HorizontalLayout {
@@ -144,38 +104,7 @@ export component HomeView inherits HorizontalLayout {
         alignment: center;
         spacing: 10px;
         Text { text: HomeState.date; color: Palette.fg-dim; font-size: 11px; font-weight: 500; }
-        HorizontalLayout {
-            spacing: 2px;
-            for d in CalState.week: VerticalLayout {
-                horizontal-stretch: 1;
-                spacing: 3px;
-                Text {
-                    text: d.label;
-                    color: d.today ? Palette.fg : Palette.fg-dim;
-                    font-size: 9px;
-                    font-weight: 600;
-                    horizontal-alignment: center;
-                }
-                HorizontalLayout {
-                    alignment: center;
-                    Rectangle {
-                        width: 26px;
-                        height: 26px;
-                        border-radius: 13px;
-                        background: d.today ? Palette.accent : transparent;
-                        Text { text: d.day; color: Palette.fg; font-size: 14px; font-weight: 600; }
-                    }
-                }
-                HorizontalLayout {
-                    alignment: center;
-                    spacing: 2px;
-                    height: 4px;
-                    if d.dots > 0: Dot { tint: Palette.accent; }
-                    if d.dots > 1: Dot { tint: Palette.purple; }
-                    if d.dots > 2: Dot { tint: Palette.orange; }
-                }
-            }
-        }
+        WeekStrip { }
         Card {
             height: 48px;
             border-radius: 12px;

@@ -483,6 +483,17 @@ impl App {
             app.settings_changed(ui);
         });
         let me = self.me.clone();
+        ui.on_apply_set(move |i| {
+            let Some(app) = me.upgrade() else { return };
+            let Some(ui) = &*app.settings.borrow() else {
+                return;
+            };
+            let rows = settings::entries_for_set(i.max(0) as usize, &app.modules);
+            ui.set_modules(Rc::new(VecModel::from(rows)).into());
+            app.settings_changed(ui);
+            ui.set_active_set(settings::active_set(&app.cfg.borrow().layout.modules));
+        });
+        let me = self.me.clone();
         ui.on_module_moved(move |from, to| {
             let Some(app) = me.upgrade() else { return };
             let Some(ui) = &*app.settings.borrow() else {
@@ -527,5 +538,6 @@ impl App {
         }
         *self.cfg.borrow_mut() = new;
         self.apply_all();
+        ui.set_active_set(settings::active_set(&self.cfg.borrow().layout.modules));
     }
 }

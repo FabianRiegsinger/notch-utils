@@ -84,3 +84,36 @@ export component Pill inherits Rectangle {
         clicked => { root.clicked(); }
     }
 }
+
+// Circular progress from 12 o'clock, clockwise.
+export component Ring inherits Rectangle {
+    in property <float> progress;
+    in property <color> tint: Palette.orange;
+    in property <length> thickness: 5px;
+    property <float> size: self.width / 1px;
+    property <float> r: (self.size - self.thickness / 1px) / 2;
+    property <float> c: self.size / 2;
+    property <float> a: clamp(root.progress, 0.0005, 0.9995) * 360;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: Palette.surface-hover;
+        stroke-width: root.thickness;
+        commands: "M " + root.c + " " + (root.c - root.r) + " A " + root.r + " " + root.r + " 0 1 1 " + (root.c - 0.01) + " " + (root.c - root.r);
+    }
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: root.tint;
+        stroke-width: root.thickness;
+        commands: "M " + root.c + " " + (root.c - root.r) + " A " + root.r + " " + root.r + " 0 "
+            + (root.a > 180 ? "1" : "0") + " 1 "
+            + (root.c + root.r * sin(root.a * 1deg)) + " " + (root.c - root.r * cos(root.a * 1deg));
+    }
+    @children
+}
+

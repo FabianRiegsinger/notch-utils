@@ -2,7 +2,7 @@
 
 use crate::config::{Config, DisplayTarget, LayoutMode, OpenMode, Renderer, StatsView, Theme};
 use crate::modules::Module;
-use crate::{ModuleEntry, SettingsWindow};
+use crate::{ModuleEntry, ModuleSet, SettingsWindow};
 use slint::{Model, VecModel};
 use std::rc::Rc;
 
@@ -20,6 +20,66 @@ const THEME: [Theme; 3] = [Theme::Black, Theme::System, Theme::Custom];
 const LAYOUT: [LayoutMode; 2] = [LayoutMode::Tabs, LayoutMode::Grid];
 const RENDERER: [Renderer; 2] = [Renderer::Software, Renderer::Gpu];
 const STATS_VIEW: [StatsView; 2] = [StatsView::Graphs, StatsView::Detailed];
+
+/// One-click module presets: (name, description, module ids in tab order).
+pub const SETS: [(&str, &str, &[&str]); 4] = [
+    (
+        "Everyday",
+        "Home, timer, calendar, shelf, clipboard and the volume/battery HUD",
+        &["home", "timer", "calendar", "shelf", "clipboard", "hud"],
+    ),
+    (
+        "Developer",
+        "Terminal, system stats, AI usage, clipboard and a calculator",
+        &[
+            "home",
+            "terminal",
+            "stats",
+            "ai",
+            "clipboard",
+            "calc",
+            "hud",
+        ],
+    ),
+    (
+        "Minimal",
+        "Just home, a timer and the HUD",
+        &["home", "timer", "hud"],
+    ),
+    (
+        "Everything",
+        "Every module",
+        &[
+            "home",
+            "timer",
+            "calc",
+            "stats",
+            "clipboard",
+            "shelf",
+            "terminal",
+            "calendar",
+            "ai",
+            "hud",
+        ],
+    ),
+];
+
+/// The set whose module list matches `modules` exactly.
+pub fn active_set(modules: &[String]) -> i32 {
+    SETS.iter()
+        .position(|(_, _, ids)| {
+            ids.len() == modules.len() && ids.iter().zip(modules).all(|(a, b)| a == b)
+        })
+        .map_or(-1, |i| i as i32)
+}
+
+/// Module rows with set `i` enabled in its order, every other module disabled after them.
+pub fn entries_for_set(i: usize, all: &[Rc<dyn Module>]) -> Vec<ModuleEntry> {
+    let ids = SETS[i.min(SETS.len() - 1)].2;
+    let mut cfg = Config::default();
+    cfg.layout.modules = ids.iter().map(|s| s.to_string()).collect();
+    module_entries(&cfg, all)
+}
 
 fn index<T: PartialEq>(table: &[T], v: &T) -> i32 {
     table.iter().position(|x| x == v).unwrap_or(0) as i32
@@ -64,6 +124,16 @@ pub fn to_ui(ui: &SettingsWindow, cfg: &Config, all: &[Rc<dyn Module>]) {
     ui.set_layout_mode(index(&LAYOUT, &cfg.layout.mode));
     ui.set_renderer(index(&RENDERER, &cfg.appearance.renderer));
     ui.set_modules(Rc::new(VecModel::from(module_entries(cfg, all))).into());
+    let sets: Vec<ModuleSet> = SETS
+        .iter()
+        .map(|(n, d, _)| ModuleSet {
+            name: (*n).into(),
+            description: (*d).into(),
+        })
+        .collect();
+    ui.set_sets(Rc::new(VecModel::from(sets)).into());
+    ui.set_active_set(active_set(&cfg.layout.modules));
+    ui.set_calendar_urls(cfg.modules.calendar.urls.join("\n").into());
     ui.set_stats_view(index(&STATS_VIEW, &cfg.modules.stats.view));
     ui.set_clip_max(cfg.modules.clipboard.max_entries.min(500) as i32);
     ui.set_clip_persist(cfg.modules.clipboard.persist);
@@ -94,6 +164,13 @@ pub fn from_ui(ui: &SettingsWindow, base: &Config) -> Config {
     c.modules.stats.view = pick(&STATS_VIEW, ui.get_stats_view());
     c.modules.clipboard.max_entries = ui.get_clip_max().max(1) as usize;
     c.modules.clipboard.persist = ui.get_clip_persist();
+    c.modules.calendar.urls = ui
+        .get_calendar_urls()
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect();
     c.modules.hud.volume = ui.get_hud_volume();
     c.modules.hud.battery = ui.get_hud_battery();
     c
@@ -114,6 +191,19 @@ pub fn open_file(path: &std::path::Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sets_are_recognised() {
+        let everyday: Vec<String> = SETS[0].2.iter().map(|s| s.to_string()).collect();
+        assert_eq!(active_set(&everyday), 0);
+        assert_eq!(active_set(&["timer".to_string()]), -1);
+        for (_, _, ids) in SETS {
+            assert!(
+                ids.iter().all(|id| SETS[3].2.contains(id)),
+                "Everything covers every set"
+            );
+        }
+    }
 
     #[test]
     fn index_tables_round_trip() {

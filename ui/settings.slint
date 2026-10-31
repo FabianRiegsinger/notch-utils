@@ -1,4 +1,9 @@
-import { AboutSlint, Button, CheckBox, ComboBox, GroupBox, LineEdit, ScrollView, SpinBox } from "std-widgets.slint";
+import { AboutSlint, Button, CheckBox, ComboBox, GroupBox, LineEdit, Palette as StdPalette, ScrollView, SpinBox, TextEdit } from "std-widgets.slint";
+
+export struct ModuleSet {
+    name: string,
+    description: string,
+}
 
 export struct ModuleEntry {
     id: string,
@@ -51,6 +56,11 @@ export component SettingsWindow inherits Window {
     callback module-toggled(int, bool);
     callback module-moved(int, int);
     callback open-config-file();
+    in property <[ModuleSet]> sets;
+    // Index of the set matching the current module list, -1 if none.
+    in property <int> active-set: -1;
+    in-out property <string> calendar-urls;
+    callback apply-set(int);
 
     ScrollView {
         VerticalLayout {
@@ -66,6 +76,35 @@ export component SettingsWindow inherits Window {
                     width: parent.width - 16px;
                     text: root.error;
                     wrap: word-wrap;
+                }
+            }
+
+            GroupBox {
+                title: "Module sets";
+                HorizontalLayout {
+                    spacing: 8px;
+                    for set[i] in root.sets: Rectangle {
+                        // Equal widths regardless of text length.
+                        horizontal-stretch: 1;
+                        preferred-width: 1px;
+                        min-width: 0px;
+                        min-height: 84px;
+                        border-radius: 12px;
+                        border-width: i == root.active-set ? 2px : 1px;
+                        border-color: i == root.active-set ? StdPalette.accent-background : StdPalette.border;
+                        background: set-touch.has-hover ? StdPalette.alternate-background : StdPalette.control-background;
+                        accessible-role: button;
+                        accessible-label: set.name;
+                        accessible-action-default => { root.apply-set(i); }
+                        VerticalLayout {
+                            padding: 10px;
+                            spacing: 4px;
+                            alignment: start;
+                            Text { text: set.name; font-size: 14px; font-weight: 600; color: StdPalette.foreground; }
+                            Text { text: set.description; font-size: 11px; wrap: word-wrap; color: StdPalette.foreground; opacity: 0.65; }
+                        }
+                        set-touch := TouchArea { clicked => { root.apply-set(i); } }
+                    }
                 }
             }
 
@@ -175,6 +214,30 @@ export component SettingsWindow inherits Window {
                             value <=> root.expanded-height;
                             edited => { root.changed(); }
                         }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Calendar";
+                VerticalLayout {
+                    spacing: 6px;
+                    TextEdit {
+                        height: 64px;
+                        text <=> root.calendar-urls;
+                        placeholder-text: "https://… or webcal://… (one link per line)";
+                        wrap: no-wrap;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: "ICS links: Google → calendar settings → \"Secret address in iCal format\". Anyone with a link can read that calendar.";
+                            wrap: word-wrap;
+                            font-size: 11px;
+                            opacity: 0.7;
+                            horizontal-stretch: 1;
+                        }
+                        Button { text: "Apply"; clicked => { root.changed(); } }
                     }
                 }
             }

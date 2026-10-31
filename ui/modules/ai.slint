@@ -31,7 +31,7 @@ component Meter inherits VerticalLayout {
             x: 0;
             width: parent.width * clamp(root.pct / 100, 0, 1);
             border-radius: 4px;
-            background: root.pct >= 90 ? #ff453a : root.pct >= 75 ? #ff9f0a : Palette.accent;
+            background: root.pct >= 90 ? Palette.red : root.pct >= 75 ? Palette.orange : Palette.purple;
         }
     }
     Text { text: root.sub; color: Palette.fg-dim; font-size: 11px; }

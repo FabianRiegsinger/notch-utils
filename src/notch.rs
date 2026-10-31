@@ -298,9 +298,12 @@ impl Notch {
         let p = self.ui.global::<Palette>();
         p.set_accent(accent);
         p.set_fg(fg);
+        // Apple's secondary/tertiary label and fill levels (#1c1c1e / #2c2c2e on black).
         p.set_fg_dim(fg.with_alpha(0.6));
-        p.set_surface(fg.with_alpha(0.08));
-        p.set_surface_hover(fg.with_alpha(0.15));
+        p.set_fg_faint(fg.with_alpha(0.3));
+        p.set_surface(fg.with_alpha(0.11));
+        p.set_surface_hover(fg.with_alpha(0.17));
+        p.set_separator(fg.with_alpha(0.1));
         self.ui.set_shape_color(shape);
         let inset = crate::platform::notch_size(self.screen.get()).map_or(0.0, |(_, h)| h);
         self.ui.set_top_inset(inset);

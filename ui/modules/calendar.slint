@@ -29,6 +29,48 @@ export global CalState {
     callback refresh();
 }
 
+component Dot inherits Rectangle {
+    in property <color> tint;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background: root.tint;
+}
+
+export component WeekStrip inherits HorizontalLayout {
+    spacing: 2px;
+
+    for d in CalState.week: VerticalLayout {
+        horizontal-stretch: 1;
+        spacing: 3px;
+        Text {
+            text: d.label;
+            color: d.today ? Palette.fg : Palette.fg-dim;
+            font-size: 9px;
+            font-weight: 600;
+            horizontal-alignment: center;
+        }
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 26px;
+                height: 26px;
+                border-radius: 13px;
+                background: d.today ? Palette.accent : transparent;
+                Text { text: d.day; color: Palette.fg; font-size: 14px; font-weight: 600; }
+            }
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 2px;
+            height: 4px;
+            if d.dots > 0: Dot { tint: Palette.accent; }
+            if d.dots > 1: Dot { tint: Palette.purple; }
+            if d.dots > 2: Dot { tint: Palette.orange; }
+        }
+    }
+}
+
 component Row inherits Rectangle {
     in property <CalEvent> ev;
     height: 38px;
@@ -83,6 +125,7 @@ export component CalendarView inherits VerticalLayout {
         days := VerticalLayout {
             spacing: 10px;
             alignment: start;
+            WeekStrip { }
             Day { title: "Today"; events: CalState.today; }
             Day { title: "Tomorrow"; events: CalState.tomorrow; }
             if CalState.error != "": Text { text: CalState.error; color: #ff453a; font-size: 11px; wrap: word-wrap; }

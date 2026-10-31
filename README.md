@@ -4,7 +4,10 @@ Interactive notch with lots of utility. A black notch at the top center of the s
 expands into a panel of small tools. Runs on macOS, Windows and Linux; written in Rust
 with [Slint](https://slint.dev).
 
-- macOS: sits exactly over the hardware notch (or a pill on Macs/displays without one)
+- macOS: sits exactly over the hardware notch, flowing into the menu bar (or a pill on
+  Macs/displays without one)
+- Live activities beside the notch: a running timer, volume and charging, an event about to
+  start or a Claude limit show left and right of the camera without opening anything
 - Windows / Linux: a pill at the top center that expands like the notch
 - ~0% CPU while idle, ~35 MB memory (software renderer; GPU renderer optional)
 
@@ -15,6 +18,7 @@ with [Slint](https://slint.dev).
 | Peek | Hover the notch |
 | Open | Click it, press the global hotkey, or run `notch-utils --toggle` |
 | Close | Move the mouse away, press Esc, or toggle again |
+| Switch tabs | The icons left and right of the camera |
 | Settings | Tray / menu-bar icon → Settings…, or `notch-utils --settings` |
 | Shelf a file | Drag it onto the notch, or `notch-utils --shelf FILE...` |
 
@@ -70,6 +74,10 @@ settings and shows the error in the settings window.
 
 ## Modules
 
+Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modules one by one.
+
+- **Home**: dashboard with the timer, this week with your next event, battery, Claude usage
+  and CPU/RAM.
 - **Timer**: countdown and stopwatch; shows in the peek while running, pops the notch
   open when done.
 - **Calculator**: macOS-style basic calculator (operator precedence, repeated `=`, `%`).
