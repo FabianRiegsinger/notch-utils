@@ -57,6 +57,12 @@ mod other {
 
     /// Focus is handled by the window manager.
     pub fn activate_app() {}
+
+    /// shortcut: native drag-out exists on macOS only (OLE DoDragDrop / XDND source are
+    /// large); elsewhere the shelf copies files to the clipboard instead.
+    pub fn start_file_drag(_window: &winit::window::Window, _paths: &[std::path::PathBuf]) -> bool {
+        false
+    }
 }
 #[cfg(not(target_os = "macos"))]
 pub use other::*;

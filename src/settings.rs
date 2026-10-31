@@ -67,6 +67,8 @@ pub fn to_ui(ui: &SettingsWindow, cfg: &Config, all: &[Rc<dyn Module>]) {
     ui.set_stats_view(index(&STATS_VIEW, &cfg.modules.stats.view));
     ui.set_clip_max(cfg.modules.clipboard.max_entries.min(500) as i32);
     ui.set_clip_persist(cfg.modules.clipboard.persist);
+    ui.set_hud_volume(cfg.modules.hud.volume);
+    ui.set_hud_battery(cfg.modules.hud.battery);
 }
 
 /// Start from `base` so keys the window doesn't show are kept.
@@ -92,6 +94,8 @@ pub fn from_ui(ui: &SettingsWindow, base: &Config) -> Config {
     c.modules.stats.view = pick(&STATS_VIEW, ui.get_stats_view());
     c.modules.clipboard.max_entries = ui.get_clip_max().max(1) as usize;
     c.modules.clipboard.persist = ui.get_clip_persist();
+    c.modules.hud.volume = ui.get_hud_volume();
+    c.modules.hud.battery = ui.get_hud_battery();
     c
 }
 

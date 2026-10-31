@@ -16,23 +16,19 @@ use slint::winit_030::winit;
 
 slint::include_modules!();
 
-const USAGE: &str = "usage: notch-utils [--toggle | --settings]";
+const USAGE: &str = "usage: notch-utils [--toggle | --settings | --shelf FILE...]";
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let cmd = match std::env::args().nth(1) {
-        None => Command::Ping,
-        Some(a) if a == "-h" || a == "--help" => {
-            println!("{USAGE}");
-            return Ok(());
-        }
-        Some(a) => {
-            Command::parse(&a).ok_or_else(|| anyhow::anyhow!("unknown argument {a:?}\n{USAGE}"))?
-        }
-    };
-    // Already running? Hand over the command and exit.
-    if ipc::send(cmd)? {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "-h" || a == "--help") {
+        println!("{USAGE}");
+        return Ok(());
+    }
+    let cmds = ipc::from_args(&args).map_err(|e| anyhow::anyhow!("{e}\n{USAGE}"))?;
+    // Already running? Hand over the commands and exit.
+    if ipc::send(&cmds)? {
         return Ok(());
     }
 
@@ -80,7 +76,7 @@ fn main() -> anyhow::Result<()> {
         .select()?;
 
     let app = App::new(cfg, cfg_path.clone(), error)?;
-    if cmd != Command::Ping {
+    for cmd in cmds {
         app.command(cmd);
     }
 

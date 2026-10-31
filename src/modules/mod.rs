@@ -4,6 +4,7 @@
 mod calc;
 mod clipboard;
 mod hud;
+mod shelf;
 mod stats;
 mod timer;
 
@@ -54,6 +55,10 @@ pub trait Module {
     }
     /// Config loaded or changed.
     fn config_changed(&self, _cfg: &Config) {}
+    /// A file was dropped on the notch. Return true to take it.
+    fn drop_file(&self, _path: &std::path::Path) -> bool {
+        false
+    }
     /// False for modules that only show in the peek (no tab).
     fn has_view(&self) -> bool {
         true
@@ -66,6 +71,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         calc::Calc::new(ctx.clone()),
         stats::Stats::new(ctx.clone()),
         clipboard::ClipboardModule::new(ctx.clone()),
+        shelf::Shelf::new(ctx.clone()),
         hud::HudModule::new(ctx),
     ]
 }

@@ -30,6 +30,8 @@ pub struct Notch {
     on_change: Rc<dyn Fn()>,
     /// Offered every key press while expanded; true = a module consumed it.
     on_key: Rc<dyn Fn(&str) -> bool>,
+    /// A file was dropped on the window.
+    on_file: Rc<dyn Fn(&std::path::Path)>,
 }
 
 impl Notch {
@@ -37,6 +39,7 @@ impl Notch {
         cfg: Rc<RefCell<Config>>,
         on_change: Rc<dyn Fn()>,
         on_key: Rc<dyn Fn(&str) -> bool>,
+        on_file: Rc<dyn Fn(&std::path::Path)>,
     ) -> Result<Rc<Self>, slint::PlatformError> {
         let ui = NotchWindow::new()?;
         let notch = Rc::new_cyclic(|me| Self {
@@ -50,6 +53,7 @@ impl Notch {
             shrink_timer: slint::Timer::default(),
             on_change,
             on_key,
+            on_file,
         });
 
         let weak = Rc::downgrade(&notch);
@@ -74,10 +78,16 @@ impl Notch {
                     n.leave_timer.stop();
                     n.handle(Event::PointerEnter);
                 }
-                WindowEvent::CursorLeft { .. } => {
-                    n.hovered.set(false);
-                    n.start_leave_timer()
+                // AppKit also sends a leave when the window grows while the cursor is
+                // elsewhere: only a leave after an enter counts.
+                WindowEvent::CursorLeft { .. } if n.hovered.replace(false) => n.start_leave_timer(),
+                WindowEvent::HoveredFile(_) => {
+                    n.leave_timer.stop();
+                    n.handle(Event::FileHover);
+                    n.select_tab("shelf");
                 }
+                WindowEvent::HoveredFileCancelled => n.start_leave_timer(),
+                WindowEvent::DroppedFile(path) => (n.on_file)(path),
                 WindowEvent::Focused(false) => n.handle(Event::FocusLost),
                 WindowEvent::ThemeChanged(_) => n.apply_appearance(),
                 WindowEvent::KeyboardInput { event, .. }
@@ -165,6 +175,17 @@ impl Notch {
             log::debug!("{old:?} --{event:?}--> {new:?}");
             self.state.set(new);
             self.apply(old, new);
+            (self.on_change)();
+        }
+    }
+
+    /// Switch to a module's tab if it's shown.
+    pub fn select_tab(&self, id: &str) {
+        let tabs = self.ui.get_modules();
+        if let Some(i) = tabs.iter().position(|t| t.id == id)
+            && self.ui.get_active_tab() != i as i32
+        {
+            self.ui.set_active_tab(i as i32);
             (self.on_change)();
         }
     }

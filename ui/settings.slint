@@ -42,6 +42,8 @@ export component SettingsWindow inherits Window {
     in-out property <int> renderer-at-start: -1;
     in-out property <int> clip-max;
     in-out property <bool> clip-persist;
+    in-out property <bool> hud-volume;
+    in-out property <bool> hud-battery;
     in property <string> error;
     in property <string> config-path;
 
@@ -219,6 +221,23 @@ export component SettingsWindow inherits Window {
                         model: ["Compact with graphs", "Detailed"];
                         current-index <=> root.stats-view;
                         selected => { root.changed(); }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Volume & battery HUD";
+                VerticalLayout {
+                    spacing: 8px;
+                    CheckBox {
+                        text: "Show volume changes";
+                        checked <=> root.hud-volume;
+                        toggled => { root.changed(); }
+                    }
+                    CheckBox {
+                        text: "Show charger and low-battery changes";
+                        checked <=> root.hud-battery;
+                        toggled => { root.changed(); }
                     }
                 }
             }

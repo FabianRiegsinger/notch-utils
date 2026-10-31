@@ -130,12 +130,19 @@ impl App {
         match cmd {
             Command::Toggle => self.toggle(),
             Command::Settings => self.open_settings(),
+            Command::Shelf(path) => {
+                self.drop_file(&path);
+                if let Some(n) = self.notches.borrow().first() {
+                    n.handle(Event::FileHover);
+                    n.select_tab("shelf");
+                }
+            }
             Command::Ping => {}
         }
     }
 
     fn add_notch(&self, screen: Option<usize>) -> Result<(), slint::PlatformError> {
-        let (me, me2) = (self.me.clone(), self.me.clone());
+        let (me, me2, me3) = (self.me.clone(), self.me.clone(), self.me.clone());
         let notch = Notch::new(
             self.cfg.clone(),
             Rc::new(move || {
@@ -144,6 +151,11 @@ impl App {
                 }
             }),
             Rc::new(move |key| me2.upgrade().is_some_and(|app| app.key(key))),
+            Rc::new(move |path| {
+                if let Some(app) = me3.upgrade() {
+                    app.drop_file(path)
+                }
+            }),
         )?;
         notch.set_screen(screen);
         for m in &self.modules {
@@ -295,6 +307,16 @@ impl App {
             .or_else(|| notches.first());
         if let Some(n) = target {
             n.handle(Event::Toggle)
+        }
+    }
+
+    /// Give a dropped file to the first enabled module that takes it.
+    fn drop_file(&self, path: &std::path::Path) {
+        if !self.enabled().iter().any(|m| m.drop_file(path)) {
+            log::info!(
+                "dropped {} but no module takes files (enable Shelf)",
+                path.display()
+            );
         }
     }
 

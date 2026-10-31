@@ -102,6 +102,8 @@ fn read_battery(m: &starship_battery::Manager) -> Option<Battery> {
     })
 }
 
+// Used by the Linux watcher; tested everywhere.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 /// "Volume: front-left: 32768 /  50% / -18.06 dB,   front-right: ..." → average of the %s.
 pub fn parse_pactl_volume(s: &str) -> Option<f32> {
     let v: Vec<f32> = s
@@ -112,6 +114,7 @@ pub fn parse_pactl_volume(s: &str) -> Option<f32> {
 }
 
 /// "Mute: no" / "Mute: yes"
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn parse_pactl_mute(s: &str) -> Option<bool> {
     match s.trim().strip_prefix("Mute:")?.trim() {
         "yes" => Some(true),

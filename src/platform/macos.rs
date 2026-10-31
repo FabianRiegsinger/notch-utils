@@ -139,3 +139,102 @@ pub fn activate_app() {
         objc2_app_kit::NSApplication::sharedApplication(mtm).activate();
     }
 }
+
+mod drag {
+    use objc2::rc::Retained;
+    use objc2::runtime::{NSObject, NSObjectProtocol, ProtocolObject};
+    use objc2::{AnyThread, MainThreadMarker, MainThreadOnly, define_class, msg_send};
+    use objc2_app_kit::{
+        NSApplication, NSDragOperation, NSDraggingContext, NSDraggingItem, NSDraggingSession,
+        NSDraggingSource, NSView, NSWorkspace,
+    };
+    use objc2_foundation::{NSArray, NSPoint, NSRect, NSSize, NSString, NSURL};
+    use std::cell::RefCell;
+    use std::path::PathBuf;
+
+    define_class!(
+        // SAFETY: NSObject has no subclassing requirements; no ivars.
+        #[unsafe(super(NSObject))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "NotchUtilsDragSource"]
+        struct DragSource;
+
+        unsafe impl NSObjectProtocol for DragSource {}
+
+        unsafe impl NSDraggingSource for DragSource {
+            #[unsafe(method(draggingSession:sourceOperationMaskForDraggingContext:))]
+            fn op_mask(&self, _s: &NSDraggingSession, _c: NSDraggingContext) -> NSDragOperation {
+                NSDragOperation::Copy
+            }
+
+            #[unsafe(method(draggingSession:endedAtPoint:operation:))]
+            fn ended(&self, _s: &NSDraggingSession, _p: NSPoint, op: NSDragOperation) {
+                log::debug!("file drag ended, operation {:?}", op);
+            }
+        }
+    );
+
+    thread_local! {
+        // AppKit doesn't document whether the session retains its source: keep it alive.
+        static SOURCE: RefCell<Option<Retained<DragSource>>> = const { RefCell::new(None) };
+    }
+
+    /// Start a native file drag from `view`. Must run while AppKit is handling a mouse
+    /// drag event (it reads `NSApp.currentEvent`).
+    pub fn start(view: &NSView, paths: &[PathBuf]) -> bool {
+        let Some(mtm) = MainThreadMarker::new() else {
+            return false;
+        };
+        let Some(event) = NSApplication::sharedApplication(mtm).currentEvent() else {
+            return false;
+        };
+        let loc = view.convertPoint_fromView(event.locationInWindow(), None);
+        let workspace = NSWorkspace::sharedWorkspace();
+        let items: Vec<Retained<NSDraggingItem>> = paths
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let path = NSString::from_str(&p.to_string_lossy());
+                let url = NSURL::fileURLWithPath(&path);
+                let item = NSDraggingItem::initWithPasteboardWriter(
+                    NSDraggingItem::alloc(),
+                    ProtocolObject::from_ref(&*url),
+                );
+                let icon = workspace.iconForFile(&path);
+                let off = i as f64 * 4.0;
+                let frame = NSRect::new(
+                    NSPoint::new(loc.x - 16.0 + off, loc.y - 16.0 - off),
+                    NSSize::new(32.0, 32.0),
+                );
+                // SAFETY: `icon` is an NSImage, the documented contents type.
+                unsafe { item.setDraggingFrame_contents(frame, Some(&icon)) };
+                item
+            })
+            .collect();
+        if items.is_empty() {
+            return false;
+        }
+        // SAFETY: plain init of a NSObject subclass without ivars.
+        let source: Retained<DragSource> = unsafe { msg_send![DragSource::alloc(mtm), init] };
+        view.beginDraggingSessionWithItems_event_source(
+            &NSArray::from_retained_slice(&items),
+            &event,
+            ProtocolObject::from_ref(&*source),
+        );
+        SOURCE.with(|s| *s.borrow_mut() = Some(source));
+        true
+    }
+}
+
+/// Native drag of files out of the notch (to Finder, Mail, ...).
+pub fn start_file_drag(window: &winit::window::Window, paths: &[std::path::PathBuf]) -> bool {
+    let Ok(handle) = window.window_handle() else {
+        return false;
+    };
+    let RawWindowHandle::AppKit(h) = handle.as_raw() else {
+        return false;
+    };
+    // SAFETY: valid NSView for the window's lifetime; main thread.
+    let view: &NSView = unsafe { h.ns_view.cast().as_ref() };
+    drag::start(view, paths)
+}
