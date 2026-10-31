@@ -1,0 +1,221 @@
+import { AboutSlint, Button, CheckBox, ComboBox, GroupBox, LineEdit, ScrollView, SpinBox } from "std-widgets.slint";
+
+export struct ModuleEntry {
+    id: string,
+    title: string,
+    enabled: bool,
+}
+
+component Row inherits HorizontalLayout {
+    in property <string> label;
+    spacing: 12px;
+    Text {
+        text: root.label;
+        vertical-alignment: center;
+        min-width: 150px;
+        horizontal-stretch: 0;
+    }
+}
+
+// Every edit applies immediately (and is written to config.toml); no Save button.
+export component SettingsWindow inherits Window {
+    title: "notch-utils Settings";
+    preferred-width: 520px;
+    preferred-height: 640px;
+    min-width: 420px;
+    min-height: 360px;
+
+    in-out property <int> open-mode;
+    in-out property <bool> hotkey-enabled;
+    in-out property <string> hotkey;
+    in-out property <int> collapse-delay;
+    in-out property <int> display-target;
+    in-out property <int> theme;
+    in-out property <string> accent;
+    in-out property <int> expanded-width;
+    in-out property <int> expanded-height;
+    in-out property <int> layout-mode;
+    in-out property <[ModuleEntry]> modules;
+    in property <string> error;
+    in property <string> config-path;
+
+    callback changed();
+    callback module-toggled(int, bool);
+    callback module-moved(int, int);
+    callback open-config-file();
+
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+
+            if root.error != "": Rectangle {
+                background: #ff453a33;
+                border-radius: 8px;
+                height: error-text.preferred-height + 16px;
+                error-text := Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    text: root.error;
+                    wrap: word-wrap;
+                }
+            }
+
+            GroupBox {
+                title: "Behavior";
+                VerticalLayout {
+                    spacing: 8px;
+                    Row {
+                        label: "Open";
+                        ComboBox {
+                            model: ["Hover to peek, click to open", "Hover opens fully", "Click only"];
+                            current-index <=> root.open-mode;
+                            selected => { root.changed(); }
+                        }
+                    }
+                    Row {
+                        label: "Collapse delay (ms)";
+                        SpinBox {
+                            minimum: 0;
+                            maximum: 5000;
+                            step-size: 50;
+                            value <=> root.collapse-delay;
+                            edited => { root.changed(); }
+                        }
+                    }
+                    Row {
+                        label: "Global hotkey";
+                        CheckBox {
+                            text: "Enabled";
+                            checked <=> root.hotkey-enabled;
+                            toggled => { root.changed(); }
+                        }
+                        LineEdit {
+                            text <=> root.hotkey;
+                            placeholder-text: "Alt+Space";
+                            enabled: root.hotkey-enabled;
+                            accepted => { root.changed(); }
+                        }
+                    }
+                    Text {
+                        text: "Press Enter to apply the hotkey. On Wayland, bind `notch-utils --toggle` in your desktop settings instead.";
+                        wrap: word-wrap;
+                        font-size: 11px;
+                        opacity: 0.7;
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Display";
+                Row {
+                    label: "Show notch on";
+                    ComboBox {
+                        model: ["Main display", "All displays", "Display with the mouse"];
+                        current-index <=> root.display-target;
+                        selected => { root.changed(); }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Appearance";
+                VerticalLayout {
+                    spacing: 8px;
+                    Row {
+                        label: "Theme";
+                        ComboBox {
+                            model: ["Black", "Follow system", "Custom accent"];
+                            current-index <=> root.theme;
+                            selected => { root.changed(); }
+                        }
+                    }
+                    if root.theme == 2: Row {
+                        label: "Accent (#RRGGBB)";
+                        LineEdit {
+                            text <=> root.accent;
+                            accepted => { root.changed(); }
+                        }
+                    }
+                    Row {
+                        label: "Panel size";
+                        SpinBox {
+                            minimum: 360;
+                            maximum: 1600;
+                            step-size: 20;
+                            value <=> root.expanded-width;
+                            edited => { root.changed(); }
+                        }
+                        Text { text: "×"; vertical-alignment: center; }
+                        SpinBox {
+                            minimum: 160;
+                            maximum: 900;
+                            step-size: 20;
+                            value <=> root.expanded-height;
+                            edited => { root.changed(); }
+                        }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Modules";
+                VerticalLayout {
+                    spacing: 8px;
+                    Row {
+                        label: "Layout";
+                        ComboBox {
+                            model: ["Tabs", "Grid"];
+                            current-index <=> root.layout-mode;
+                            selected => { root.changed(); }
+                        }
+                    }
+                    for m[i] in root.modules: HorizontalLayout {
+                        spacing: 8px;
+                        CheckBox {
+                            text: m.title;
+                            checked: m.enabled;
+                            toggled => { root.module-toggled(i, self.checked); }
+                        }
+                        Rectangle { }
+                        Button {
+                            text: "↑";
+                            enabled: i > 0;
+                            clicked => { root.module-moved(i, i - 1); }
+                        }
+                        Button {
+                            text: "↓";
+                            enabled: i < root.modules.length - 1;
+                            clicked => { root.module-moved(i, i + 1); }
+                        }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Config file";
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: root.config-path;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "Open";
+                        clicked => { root.open-config-file(); }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "About";
+                VerticalLayout {
+                    Text { text: "notch-utils — MIT licensed. Built with Slint (Royalty-free license)."; wrap: word-wrap; }
+                    AboutSlint { }
+                }
+            }
+        }
+    }
+}

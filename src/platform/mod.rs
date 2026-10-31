@@ -12,13 +12,22 @@ mod other {
     /// Always-on-top and skip-taskbar are set via window attributes in main.rs.
     pub fn setup_window(_window: &winit::window::Window) {}
 
-    /// Resize, then move to top-center of the primary monitor (or the window's current one).
-    pub fn place_top_center(window: &winit::window::Window, w: f32, h: f32) {
+    /// `None` = primary monitor; `Some(i)` = i-th of `available_monitors()`.
+    fn monitor(
+        window: &winit::window::Window,
+        i: Option<usize>,
+    ) -> Option<winit::monitor::MonitorHandle> {
+        match i {
+            Some(i) => window.available_monitors().nth(i),
+            None => window.primary_monitor(),
+        }
+        .or_else(|| window.current_monitor())
+    }
+
+    /// Resize, then move to top-center of the given monitor.
+    pub fn place_top_center(window: &winit::window::Window, screen: Option<usize>, w: f32, h: f32) {
         let _ = window.request_inner_size(winit::dpi::LogicalSize::new(w, h));
-        let Some(m) = window
-            .primary_monitor()
-            .or_else(|| window.current_monitor())
-        else {
+        let Some(m) = monitor(window, screen) else {
             return;
         };
         let scale = m.scale_factor() as f32;
@@ -32,9 +41,22 @@ mod other {
     }
 
     /// Only Macs have a hardware notch.
-    pub fn notch_size() -> Option<(f32, f32)> {
+    pub fn notch_size(_screen: Option<usize>) -> Option<(f32, f32)> {
         None
     }
+
+    pub fn screen_count(window: &winit::window::Window) -> usize {
+        window.available_monitors().count().max(1)
+    }
+
+    /// shortcut: follow-mouse needs a global cursor query (GetCursorPos / XQueryPointer);
+    /// until then the notch stays on the primary monitor on Windows and Linux.
+    pub fn cursor_screen(_window: &winit::window::Window) -> Option<usize> {
+        None
+    }
+
+    /// Focus is handled by the window manager.
+    pub fn activate_app() {}
 }
 #[cfg(not(target_os = "macos"))]
 pub use other::*;

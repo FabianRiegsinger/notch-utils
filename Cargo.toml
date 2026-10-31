@@ -7,8 +7,11 @@ edition = "2024"
 anyhow = "1.0.104"
 directories = "6.0.0"
 env_logger = "0.11.11"
+global-hotkey = "0.9.0"
+interprocess = "2.4.7"
 jiff = "0.2.38"
 log = "0.4.35"
+notify = "8"
 serde = { version = "1.0.229", features = ["derive"] }
 slint = { version = "1.18.1", default-features = false, features = ["std", "compat-1-2", "accessibility", "backend-winit", "renderer-femtovg", "renderer-software", "system-tray", "unstable-winit-030"] }
 toml = "1.1.8"

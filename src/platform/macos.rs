@@ -53,11 +53,11 @@ fn allow_above_menu_bar(ns_window: &NSWindow) {
 
 /// Resize and move to top-center of the menu-bar screen in one setFrame call:
 /// winit's move/resize get constrained by AppKit to stay below the menu bar.
-pub fn place_top_center(window: &winit::window::Window, w: f32, h: f32) {
+pub fn place_top_center(window: &winit::window::Window, screen: Option<usize>, w: f32, h: f32) {
     let (Some(ns_window), Some(mtm)) = (ns_window(window), MainThreadMarker::new()) else {
         return;
     };
-    let Some(screen) = NSScreen::screens(mtm).firstObject() else {
+    let Some(screen) = nth_screen(mtm, screen) else {
         return;
     };
     let f = screen.frame();
@@ -82,9 +82,9 @@ fn ns_window(window: &winit::window::Window) -> Option<Retained<NSWindow>> {
 }
 
 /// Hardware notch size in points on the menu-bar screen, `None` on Macs without one.
-pub fn notch_size() -> Option<(f32, f32)> {
+pub fn notch_size(screen: Option<usize>) -> Option<(f32, f32)> {
     let mtm = MainThreadMarker::new()?;
-    let screen = NSScreen::screens(mtm).firstObject()?;
+    let screen = nth_screen(mtm, screen)?;
     let top = screen.safeAreaInsets().top;
     if top <= 0.0 {
         return None;
@@ -106,4 +106,36 @@ pub fn cursor_inside(window: &winit::window::Window) -> Option<bool> {
             && p.y >= f.origin.y
             && p.y <= f.origin.y + f.size.height,
     )
+}
+
+/// `None` = the menu-bar screen (NSScreen.screens[0]).
+fn nth_screen(mtm: MainThreadMarker, i: Option<usize>) -> Option<Retained<NSScreen>> {
+    let screens = NSScreen::screens(mtm);
+    let i = i.unwrap_or(0);
+    (i < screens.count()).then(|| screens.objectAtIndex(i))
+}
+
+pub fn screen_count(_window: &winit::window::Window) -> usize {
+    MainThreadMarker::new().map_or(1, |mtm| NSScreen::screens(mtm).count())
+}
+
+/// Index of the screen under the mouse.
+pub fn cursor_screen(_window: &winit::window::Window) -> Option<usize> {
+    let mtm = MainThreadMarker::new()?;
+    let p = objc2_app_kit::NSEvent::mouseLocation();
+    NSScreen::screens(mtm).iter().position(|s| {
+        let f = s.frame();
+        p.x >= f.origin.x
+            && p.x < f.origin.x + f.size.width
+            && p.y >= f.origin.y
+            && p.y < f.origin.y + f.size.height
+    })
+}
+
+/// Bring the app forward so a normal window (settings) gets focus: the app runs as an
+/// accessory app without a Dock icon, which macOS never activates on its own.
+pub fn activate_app() {
+    if let Some(mtm) = MainThreadMarker::new() {
+        objc2_app_kit::NSApplication::sharedApplication(mtm).activate();
+    }
 }

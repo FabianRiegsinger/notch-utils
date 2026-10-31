@@ -1,26 +1,52 @@
 mod app;
 mod config;
+mod hotkey;
+mod ipc;
 mod modules;
 mod notch;
 mod platform;
+mod settings;
 mod state;
+mod watch;
 
+use app::App;
 use config::Config;
+use ipc::Command;
 use slint::winit_030::winit;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 slint::include_modules!();
+
+const USAGE: &str = "usage: notch-utils [--toggle | --settings]";
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    let cmd = match std::env::args().nth(1) {
+        None => Command::Ping,
+        Some(a) if a == "-h" || a == "--help" => {
+            println!("{USAGE}");
+            return Ok(());
+        }
+        Some(a) => {
+            Command::parse(&a).ok_or_else(|| anyhow::anyhow!("unknown argument {a:?}\n{USAGE}"))?
+        }
+    };
+    // Already running? Hand over the command and exit.
+    if ipc::send(cmd)? {
+        return Ok(());
+    }
+
     let cfg_path = Config::path();
-    let cfg = Config::load(&cfg_path).unwrap_or_else(|e| {
-        log::error!("invalid config {}: {e}; using defaults", cfg_path.display());
-        Config::default()
-    });
-    let cfg = Rc::new(RefCell::new(cfg));
+    let (cfg, error) = match Config::load(&cfg_path) {
+        Ok(c) => (c, String::new()),
+        Err(e) => {
+            log::error!("invalid config {}: {e}; using defaults", cfg_path.display());
+            (
+                Config::default(),
+                format!("config.toml: {e}\nUsing defaults."),
+            )
+        }
+    };
 
     #[allow(unused_mut)]
     let mut event_loop = winit::event_loop::EventLoop::with_user_event();
@@ -44,27 +70,35 @@ fn main() -> anyhow::Result<()> {
             #[cfg(target_os = "windows")]
             let attrs = {
                 use winit::platform::windows::WindowAttributesExtWindows;
-                attrs.with_skip_taskbar(true)
+                // Only the notch: the settings window should appear in the taskbar.
+                let notch = attrs.title == "notch-utils";
+                attrs.with_skip_taskbar(notch)
             };
             attrs
         })
         .select()?;
 
-    let app = app::App::new(cfg.clone())?;
+    let app = App::new(cfg, cfg_path.clone(), error)?;
+    if cmd != Command::Ping {
+        app.command(cmd);
+    }
+
+    if let Err(e) = ipc::serve(App::post) {
+        log::warn!("ipc unavailable, --toggle won't reach this instance: {e}");
+    }
+    let _watcher = watch::watch(&cfg_path, App::post_reload)
+        .map_err(|e| log::warn!("config live reload unavailable: {e}"))
+        .ok();
 
     let tray = Tray::new()?;
-    let a = Rc::downgrade(&app);
-    tray.on_toggle(move || {
-        if let Some(a) = a.upgrade() {
-            a.toggle()
-        }
-    });
-    tray.on_open_settings(|| log::info!("settings window: not implemented yet"));
+    tray.on_toggle(|| App::post(Command::Toggle));
+    tray.on_open_settings(|| App::post(Command::Settings));
     tray.on_quit(|| {
         let _ = slint::quit_event_loop();
     });
 
     slint::run_event_loop_until_quit()?;
     drop(tray);
+    drop(app);
     Ok(())
 }

@@ -20,6 +20,8 @@ pub struct Notch {
     ui: NotchWindow,
     cfg: Rc<RefCell<Config>>,
     state: Cell<State>,
+    /// `None` = main screen; `Some(i)` = platform screen index.
+    screen: Cell<Option<usize>>,
     leave_timer: slint::Timer,
     shrink_timer: slint::Timer,
     /// Called after every state or tab change, so the app can update module visibility.
@@ -37,6 +39,7 @@ impl Notch {
             ui,
             cfg,
             state: Cell::new(State::Collapsed),
+            screen: Cell::new(None),
             leave_timer: slint::Timer::default(),
             shrink_timer: slint::Timer::default(),
             on_change,
@@ -104,6 +107,32 @@ impl Notch {
         self.state.get()
     }
 
+    pub fn screen(&self) -> Option<usize> {
+        self.screen.get()
+    }
+
+    pub fn set_screen(&self, screen: Option<usize>) {
+        if self.screen.replace(screen) != screen {
+            self.apply_appearance();
+            let s = self.state.get();
+            self.apply(s, s);
+        }
+    }
+
+    pub fn screen_count(&self) -> usize {
+        self.ui
+            .window()
+            .with_winit_window(crate::platform::screen_count)
+            .unwrap_or(1)
+    }
+
+    pub fn cursor_screen(&self) -> Option<usize> {
+        self.ui
+            .window()
+            .with_winit_window(crate::platform::cursor_screen)
+            .flatten()
+    }
+
     pub fn handle(&self, event: Event) {
         let old = self.state.get();
         let new = state::next(old, event, self.cfg.borrow().behavior.open_mode);
@@ -113,6 +142,10 @@ impl Notch {
             self.apply(old, new);
             (self.on_change)();
         }
+    }
+
+    pub fn close(&self) {
+        let _ = self.ui.hide();
     }
 
     pub fn set_peek_text(&self, text: &str) {
@@ -182,7 +215,7 @@ impl Notch {
         p.set_surface(fg.with_alpha(0.08));
         p.set_surface_hover(fg.with_alpha(0.15));
         self.ui.set_shape_color(shape);
-        let inset = crate::platform::notch_size().map_or(0.0, |(_, h)| h);
+        let inset = crate::platform::notch_size(self.screen.get()).map_or(0.0, |(_, h)| h);
         self.ui.set_top_inset(inset);
     }
 
@@ -204,7 +237,7 @@ impl Notch {
 
     fn size_for(&self, s: State) -> (f32, f32) {
         let cfg = self.cfg.borrow();
-        let collapsed = crate::platform::notch_size().unwrap_or(PILL);
+        let collapsed = crate::platform::notch_size(self.screen.get()).unwrap_or(PILL);
         match s {
             State::Collapsed => collapsed,
             State::Peek => (360.0, (collapsed.1 + 12.0).max(48.0)),
@@ -226,13 +259,14 @@ impl Notch {
         // The window must hold the shape for the whole animation: grow it now to the larger
         // of both sizes, and shrink it to the final size once the animation is done.
         self.shrink_timer.stop();
-        place(&self.ui, w.max(ow), h.max(oh));
+        let screen = self.screen.get();
+        place(&self.ui, screen, w.max(ow), h.max(oh));
         if w < ow || h < oh {
             let ui = self.ui.as_weak();
             self.shrink_timer
                 .start(slint::TimerMode::SingleShot, SHRINK_AFTER, move || {
                     if let Some(ui) = ui.upgrade() {
-                        place(&ui, w, h);
+                        place(&ui, screen, w, h);
                     }
                 });
         }
@@ -257,11 +291,11 @@ fn parse_hex(s: &str) -> Option<Color> {
 }
 
 /// Size the window to `w`x`h` logical px and center it at the top of the screen.
-fn place(ui: &NotchWindow, w: f32, h: f32) {
+fn place(ui: &NotchWindow, screen: Option<usize>, w: f32, h: f32) {
     // Tell Slint first: it resizes the OS window back to its own idea of the size otherwise.
     ui.window().set_size(slint::LogicalSize::new(w, h));
     ui.window()
-        .with_winit_window(|win| crate::platform::place_top_center(win, w, h));
+        .with_winit_window(|win| crate::platform::place_top_center(win, screen, w, h));
 }
 
 fn with(weak: &Weak<Notch>, f: impl FnOnce(&Notch)) {

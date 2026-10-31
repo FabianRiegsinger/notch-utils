@@ -1,0 +1,113 @@
+//! Maps `Config` to and from the settings window. Enum ↔ ComboBox index tables live here.
+
+use crate::config::{Config, DisplayTarget, LayoutMode, OpenMode, Theme};
+use crate::modules::Module;
+use crate::{ModuleEntry, SettingsWindow};
+use slint::{Model, VecModel};
+use std::rc::Rc;
+
+const OPEN: [OpenMode; 3] = [
+    OpenMode::PeekThenClick,
+    OpenMode::HoverFull,
+    OpenMode::ClickOnly,
+];
+const DISPLAY: [DisplayTarget; 3] = [
+    DisplayTarget::Main,
+    DisplayTarget::All,
+    DisplayTarget::FollowMouse,
+];
+const THEME: [Theme; 3] = [Theme::Black, Theme::System, Theme::Custom];
+const LAYOUT: [LayoutMode; 2] = [LayoutMode::Tabs, LayoutMode::Grid];
+
+fn index<T: PartialEq>(table: &[T], v: &T) -> i32 {
+    table.iter().position(|x| x == v).unwrap_or(0) as i32
+}
+
+fn pick<T: Copy>(table: &[T], i: i32) -> T {
+    table[(i.max(0) as usize).min(table.len() - 1)]
+}
+
+/// Enabled modules in config order first, then the disabled ones.
+pub fn module_entries(cfg: &Config, all: &[Rc<dyn Module>]) -> Vec<ModuleEntry> {
+    let entry = |m: &Rc<dyn Module>, enabled| ModuleEntry {
+        id: m.id().into(),
+        title: m.title().into(),
+        enabled,
+    };
+    let mut out: Vec<ModuleEntry> = cfg
+        .layout
+        .modules
+        .iter()
+        .filter_map(|id| all.iter().find(|m| m.id() == id))
+        .map(|m| entry(m, true))
+        .collect();
+    for m in all {
+        if !cfg.layout.modules.iter().any(|id| id == m.id()) {
+            out.push(entry(m, false));
+        }
+    }
+    out
+}
+
+pub fn to_ui(ui: &SettingsWindow, cfg: &Config, all: &[Rc<dyn Module>]) {
+    ui.set_open_mode(index(&OPEN, &cfg.behavior.open_mode));
+    ui.set_hotkey_enabled(cfg.behavior.hotkey_enabled);
+    ui.set_hotkey(cfg.behavior.hotkey.as_str().into());
+    ui.set_collapse_delay(cfg.behavior.collapse_delay_ms.min(5000) as i32);
+    ui.set_display_target(index(&DISPLAY, &cfg.display.target));
+    ui.set_theme(index(&THEME, &cfg.appearance.theme));
+    ui.set_accent(cfg.appearance.accent.as_str().into());
+    ui.set_expanded_width(cfg.appearance.expanded_width as i32);
+    ui.set_expanded_height(cfg.appearance.expanded_height as i32);
+    ui.set_layout_mode(index(&LAYOUT, &cfg.layout.mode));
+    ui.set_modules(Rc::new(VecModel::from(module_entries(cfg, all))).into());
+}
+
+/// Start from `base` so keys the window doesn't show are kept.
+pub fn from_ui(ui: &SettingsWindow, base: &Config) -> Config {
+    let mut c = base.clone();
+    c.behavior.open_mode = pick(&OPEN, ui.get_open_mode());
+    c.behavior.hotkey_enabled = ui.get_hotkey_enabled();
+    c.behavior.hotkey = ui.get_hotkey().trim().to_string();
+    c.behavior.collapse_delay_ms = ui.get_collapse_delay().max(0) as u64;
+    c.display.target = pick(&DISPLAY, ui.get_display_target());
+    c.appearance.theme = pick(&THEME, ui.get_theme());
+    c.appearance.accent = ui.get_accent().trim().to_string();
+    c.appearance.expanded_width = ui.get_expanded_width().max(0) as u32;
+    c.appearance.expanded_height = ui.get_expanded_height().max(0) as u32;
+    c.layout.mode = pick(&LAYOUT, ui.get_layout_mode());
+    c.layout.modules = ui
+        .get_modules()
+        .iter()
+        .filter(|m| m.enabled)
+        .map(|m| m.id.to_string())
+        .collect();
+    c
+}
+
+pub fn open_file(path: &std::path::Path) {
+    #[cfg(target_os = "macos")]
+    let r = std::process::Command::new("open").arg(path).spawn();
+    #[cfg(target_os = "windows")]
+    let r = std::process::Command::new("notepad").arg(path).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let r = std::process::Command::new("xdg-open").arg(path).spawn();
+    if let Err(e) = r {
+        log::warn!("could not open {}: {e}", path.display());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_tables_round_trip() {
+        for (i, v) in OPEN.iter().enumerate() {
+            assert_eq!(pick(&OPEN, index(&OPEN, v)), *v);
+            assert_eq!(index(&OPEN, v), i as i32);
+        }
+        assert_eq!(pick(&THEME, 99), Theme::Custom);
+        assert_eq!(pick(&THEME, -1), Theme::Black);
+    }
+}
