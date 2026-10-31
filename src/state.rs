@@ -20,6 +20,8 @@ pub enum Event {
     Toggle,
     Escape,
     FocusLost,
+    /// A module wants attention (e.g. timer finished): peek if collapsed.
+    Alert,
 }
 
 pub fn next(state: State, event: Event, mode: OpenMode) -> State {
@@ -38,6 +40,8 @@ pub fn next(state: State, event: Event, mode: OpenMode) -> State {
         (Escape, _) => Collapsed,
         (FocusLost, _) if state == Expanded => Collapsed,
         (FocusLost, _) => state,
+        (Alert, _) if state == Collapsed => Peek,
+        (Alert, _) => state,
     }
 }
 
@@ -79,6 +83,8 @@ mod tests {
             assert_eq!(next(Expanded, Toggle, m), Collapsed);
             assert_eq!(next(Expanded, Escape, m), Collapsed);
             assert_eq!(next(Peek, FocusLost, m), Peek);
+            assert_eq!(next(Collapsed, Alert, m), Peek);
+            assert_eq!(next(Expanded, Alert, m), Expanded);
         }
     }
 }

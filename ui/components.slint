@@ -1,0 +1,43 @@
+// Small widgets styled for the black notch (std-widgets follow the OS style, which clashes).
+
+export global Palette {
+    in property <color> accent: #0A84FF;
+    in property <color> fg: white;
+    in property <color> fg-dim: #ffffff99;
+    in property <color> surface: #ffffff14;
+    in property <color> surface-hover: #ffffff26;
+}
+
+export component Pill inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    in property <length> font-size: 13px;
+    callback clicked();
+
+    min-height: 28px;
+    min-width: 36px;
+    horizontal-stretch: 0;
+    border-radius: self.height / 2;
+    background: root.active ? Palette.accent : (touch.has-hover ? Palette.surface-hover : Palette.surface);
+    animate background { duration: 120ms; }
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { root.clicked(); }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        Text {
+            text: root.text;
+            color: Palette.fg;
+            font-size: root.font-size;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

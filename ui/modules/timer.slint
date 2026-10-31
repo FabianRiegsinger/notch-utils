@@ -1,0 +1,46 @@
+import { Palette, Pill } from "../components.slint";
+
+export global TimerState {
+    in property <string> display: "05:00";
+    in property <bool> running;
+    in property <bool> stopwatch;
+    callback start-pause();
+    callback reset();
+    callback add-minutes(int);
+    callback set-stopwatch(bool);
+}
+
+export component TimerView inherits VerticalLayout {
+    spacing: 10px;
+    alignment: center;
+
+    HorizontalLayout {
+        alignment: center;
+        spacing: 6px;
+        Pill { text: "Timer"; active: !TimerState.stopwatch; clicked => { TimerState.set-stopwatch(false); } }
+        Pill { text: "Stopwatch"; active: TimerState.stopwatch; clicked => { TimerState.set-stopwatch(true); } }
+    }
+
+    Text {
+        text: TimerState.display;
+        color: Palette.fg;
+        font-size: 44px;
+        font-weight: 300;
+        horizontal-alignment: center;
+        accessible-role: text;
+    }
+
+    HorizontalLayout {
+        alignment: center;
+        spacing: 6px;
+        if !TimerState.stopwatch: Pill { text: "−1m"; clicked => { TimerState.add-minutes(-1); } }
+        if !TimerState.stopwatch: Pill { text: "+1m"; clicked => { TimerState.add-minutes(1); } }
+        if !TimerState.stopwatch: Pill { text: "+5m"; clicked => { TimerState.add-minutes(5); } }
+        Pill {
+            text: TimerState.running ? "Pause" : "Start";
+            active: true;
+            clicked => { TimerState.start-pause(); }
+        }
+        Pill { text: "Reset"; clicked => { TimerState.reset(); } }
+    }
+}

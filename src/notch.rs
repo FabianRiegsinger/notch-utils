@@ -1,11 +1,11 @@
 //! One notch window: feeds window events into the state machine and applies the
 //! resulting state (window geometry + Slint properties).
 
-use crate::config::Config;
+use crate::config::{Config, LayoutMode, Theme};
 use crate::state::{self, Event, State};
-use crate::{NotchState, NotchWindow};
-use slint::ComponentHandle;
+use crate::{ModuleTab, NotchState, NotchWindow, Palette};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
+use slint::{Color, ComponentHandle, Model, VecModel};
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 use std::time::Duration;
@@ -22,10 +22,15 @@ pub struct Notch {
     state: Cell<State>,
     leave_timer: slint::Timer,
     shrink_timer: slint::Timer,
+    /// Called after every state or tab change, so the app can update module visibility.
+    on_change: Rc<dyn Fn()>,
 }
 
 impl Notch {
-    pub fn new(cfg: Rc<RefCell<Config>>) -> Result<Rc<Self>, slint::PlatformError> {
+    pub fn new(
+        cfg: Rc<RefCell<Config>>,
+        on_change: Rc<dyn Fn()>,
+    ) -> Result<Rc<Self>, slint::PlatformError> {
         let ui = NotchWindow::new()?;
         let notch = Rc::new_cyclic(|me| Self {
             me: me.clone(),
@@ -34,12 +39,17 @@ impl Notch {
             state: Cell::new(State::Collapsed),
             leave_timer: slint::Timer::default(),
             shrink_timer: slint::Timer::default(),
+            on_change,
         });
 
         let weak = Rc::downgrade(&notch);
         notch
             .ui
             .on_clicked(move || with(&weak, |n| n.handle(Event::Click)));
+        let weak = Rc::downgrade(&notch);
+        notch
+            .ui
+            .on_tab_changed(move |_| with(&weak, |n| (n.on_change)()));
 
         // Enter/leave come from the OS window, not a Slint TouchArea: the window always has
         // the shape's size, and child TouchAreas (module buttons) would steal hover otherwise.
@@ -54,6 +64,7 @@ impl Notch {
                 }
                 WindowEvent::CursorLeft { .. } => n.start_leave_timer(),
                 WindowEvent::Focused(false) => n.handle(Event::FocusLost),
+                WindowEvent::ThemeChanged(_) => n.apply_appearance(),
                 WindowEvent::KeyboardInput { event, .. }
                     if event.state == ElementState::Pressed
                         && event.logical_key == Key::Named(NamedKey::Escape) =>
@@ -74,16 +85,23 @@ impl Notch {
             match ui.window().winit_window().await {
                 Ok(win) => with(&weak, |n| {
                     crate::platform::setup_window(&win);
-                    {
-                        let s = n.state.get();
-                        n.apply(s, s)
-                    }
+                    n.apply_appearance();
+                    let s = n.state.get();
+                    n.apply(s, s);
                 }),
                 Err(e) => log::error!("notch window was not created: {e}"),
             }
         })
         .map_err(|e| slint::PlatformError::Other(e.to_string()))?;
         Ok(notch)
+    }
+
+    pub fn ui(&self) -> &NotchWindow {
+        &self.ui
+    }
+
+    pub fn state(&self) -> State {
+        self.state.get()
     }
 
     pub fn handle(&self, event: Event) {
@@ -93,7 +111,79 @@ impl Notch {
             log::debug!("{old:?} --{event:?}--> {new:?}");
             self.state.set(new);
             self.apply(old, new);
+            (self.on_change)();
         }
+    }
+
+    pub fn set_peek_text(&self, text: &str) {
+        if self.ui.get_peek_text() != text {
+            self.ui.set_peek_text(text.into());
+        }
+    }
+
+    /// Module ids currently on screen in this window.
+    pub fn visible_modules(&self) -> Vec<String> {
+        if self.state.get() != State::Expanded {
+            return vec![];
+        }
+        let tabs = self.ui.get_modules();
+        if self.ui.get_grid() {
+            tabs.iter().map(|t| t.id.to_string()).collect()
+        } else {
+            let i =
+                (self.ui.get_active_tab().max(0) as usize).min(tabs.row_count().saturating_sub(1));
+            tabs.row_data(i)
+                .map(|t| vec![t.id.to_string()])
+                .unwrap_or_default()
+        }
+    }
+
+    /// Re-read layout, appearance and size settings.
+    pub fn apply_config(&self, tabs: Vec<ModuleTab>) {
+        let count = tabs.len() as i32;
+        self.ui.set_modules(Rc::new(VecModel::from(tabs)).into());
+        if self.ui.get_active_tab() >= count {
+            self.ui.set_active_tab(0);
+        }
+        self.ui
+            .set_grid(self.cfg.borrow().layout.mode == LayoutMode::Grid);
+        self.apply_appearance();
+        let s = self.state.get();
+        self.apply(s, s);
+    }
+
+    fn apply_appearance(&self) {
+        let cfg = self.cfg.borrow();
+        let light = cfg.appearance.theme == Theme::System
+            && self.ui.window().with_winit_window(|w| w.theme()).flatten()
+                == Some(winit::window::Theme::Light);
+        let accent = match cfg.appearance.theme {
+            Theme::Custom => parse_hex(&cfg.appearance.accent).unwrap_or_else(|| {
+                log::warn!("invalid accent color {:?}", cfg.appearance.accent);
+                DEFAULT_ACCENT
+            }),
+            _ => DEFAULT_ACCENT,
+        };
+        let (shape, fg) = if light {
+            (
+                Color::from_rgb_u8(0xF2, 0xF2, 0xF7),
+                Color::from_rgb_u8(0, 0, 0),
+            )
+        } else {
+            (
+                Color::from_rgb_u8(0, 0, 0),
+                Color::from_rgb_u8(0xFF, 0xFF, 0xFF),
+            )
+        };
+        let p = self.ui.global::<Palette>();
+        p.set_accent(accent);
+        p.set_fg(fg);
+        p.set_fg_dim(fg.with_alpha(0.6));
+        p.set_surface(fg.with_alpha(0.08));
+        p.set_surface_hover(fg.with_alpha(0.15));
+        self.ui.set_shape_color(shape);
+        let inset = crate::platform::notch_size().map_or(0.0, |(_, h)| h);
+        self.ui.set_top_inset(inset);
     }
 
     fn start_leave_timer(&self) {
@@ -133,12 +223,11 @@ impl Notch {
             State::Peek => NotchState::Peek,
             State::Expanded => NotchState::Expanded,
         });
+        // The window must hold the shape for the whole animation: grow it now to the larger
+        // of both sizes, and shrink it to the final size once the animation is done.
         self.shrink_timer.stop();
-        if w >= ow && h >= oh {
-            // Grow: enlarge the (transparent) window first, then let the shape animate out.
-            place(&self.ui, w, h);
-        } else {
-            // Shrink: animate the shape in, then shrink the window to match.
+        place(&self.ui, w.max(ow), h.max(oh));
+        if w < ow || h < oh {
             let ui = self.ui.as_weak();
             self.shrink_timer
                 .start(slint::TimerMode::SingleShot, SHRINK_AFTER, move || {
@@ -155,6 +244,18 @@ impl Notch {
     }
 }
 
+const DEFAULT_ACCENT: Color = Color::from_rgb_u8(0x0A, 0x84, 0xFF);
+
+/// `#RRGGBB` → color.
+fn parse_hex(s: &str) -> Option<Color> {
+    let hex = s.strip_prefix('#')?;
+    if hex.len() != 6 {
+        return None;
+    }
+    let v = u32::from_str_radix(hex, 16).ok()?;
+    Some(Color::from_rgb_u8((v >> 16) as u8, (v >> 8) as u8, v as u8))
+}
+
 /// Size the window to `w`x`h` logical px and center it at the top of the screen.
 fn place(ui: &NotchWindow, w: f32, h: f32) {
     // Tell Slint first: it resizes the OS window back to its own idea of the size otherwise.
@@ -166,5 +267,21 @@ fn place(ui: &NotchWindow, w: f32, h: f32) {
 fn with(weak: &Weak<Notch>, f: impl FnOnce(&Notch)) {
     if let Some(n) = weak.upgrade() {
         f(&n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_colors() {
+        assert_eq!(
+            parse_hex("#0A84FF"),
+            Some(Color::from_rgb_u8(0x0A, 0x84, 0xFF))
+        );
+        assert_eq!(parse_hex("0A84FF"), None);
+        assert_eq!(parse_hex("#12345"), None);
+        assert_eq!(parse_hex("#GGGGGG"), None);
     }
 }

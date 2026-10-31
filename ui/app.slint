@@ -1,4 +1,20 @@
+import { Palette, Pill } from "components.slint";
+import { TimerView, TimerState } from "modules/timer.slint";
+
+export { Palette, TimerState }
+
 export enum NotchState { collapsed, peek, expanded }
+
+export struct ModuleTab {
+    id: string,
+    title: string,
+}
+
+// Picks a module's full view by id. Adding a module = one line here.
+component ModuleView {
+    in property <string> id;
+    if root.id == "timer": TimerView { }
+}
 
 export component NotchWindow inherits Window {
     title: "notch-utils";
@@ -12,10 +28,15 @@ export component NotchWindow inherits Window {
     in property <length> shape-width: 160px;
     in property <length> shape-height: 24px;
     in property <color> shape-color: black;
-    in property <color> accent: #0A84FF;
+    // Height hidden by the camera housing; content starts below it.
+    in property <length> top-inset: 0px;
     in property <string> peek-text;
+    in property <[ModuleTab]> modules;
+    in property <bool> grid;
+    in-out property <int> active-tab;
 
     callback clicked();
+    callback tab-changed(int);
 
     shape := Rectangle {
         x: (root.width - self.width) / 2;
@@ -30,28 +51,66 @@ export component NotchWindow inherits Window {
         animate width, height { duration: 260ms; easing: ease-out-back; }
         animate border-bottom-left-radius { duration: 200ms; }
 
+        // Behind the content: catches clicks that no module control handled.
         TouchArea {
             clicked => { root.clicked(); }
         }
 
         if root.state == NotchState.peek: Text {
+            y: root.top-inset;
+            height: parent.height - root.top-inset;
+            width: parent.width;
             text: root.peek-text;
-            color: white;
+            color: Palette.fg;
             font-size: 13px;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
 
         if root.state == NotchState.expanded: VerticalLayout {
-            padding: 16px;
-            padding-top: 36px;
-            Text {
-                text: "notch-utils";
-                color: white;
-                font-size: 15px;
-                font-weight: 600;
+            padding: 14px;
+            padding-top: max(root.top-inset, 10px) + 6px;
+            spacing: 10px;
+
+            if !root.grid && root.modules.length > 1: HorizontalLayout {
+                alignment: center;
+                spacing: 6px;
+                for m[i] in root.modules: Pill {
+                    text: m.title;
+                    active: i == root.active-tab;
+                    clicked => {
+                        root.active-tab = i;
+                        root.tab-changed(i);
+                    }
+                }
             }
-            Rectangle { }
+
+            if root.modules.length == 0: Text {
+                text: "No modules enabled. Open Settings from the tray icon.";
+                color: Palette.fg-dim;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                vertical-stretch: 1;
+            }
+
+            if !root.grid && root.modules.length > 0: ModuleView {
+                id: root.modules[min(root.active-tab, root.modules.length - 1)].id;
+                vertical-stretch: 1;
+            }
+
+            if root.grid: HorizontalLayout {
+                spacing: 10px;
+                vertical-stretch: 1;
+                for m in root.modules: Rectangle {
+                    background: Palette.surface;
+                    border-radius: 16px;
+                    VerticalLayout {
+                        padding: 10px;
+                        Text { text: m.title; color: Palette.fg-dim; font-size: 11px; }
+                        ModuleView { id: m.id; vertical-stretch: 1; }
+                    }
+                }
+            }
         }
     }
 }

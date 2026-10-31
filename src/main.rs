@@ -1,4 +1,6 @@
+mod app;
 mod config;
+mod modules;
 mod notch;
 mod platform;
 mod state;
@@ -48,13 +50,13 @@ fn main() -> anyhow::Result<()> {
         })
         .select()?;
 
-    let notch = notch::Notch::new(cfg.clone())?;
+    let app = app::App::new(cfg.clone())?;
 
     let tray = Tray::new()?;
-    let n = Rc::downgrade(&notch);
+    let a = Rc::downgrade(&app);
     tray.on_toggle(move || {
-        if let Some(n) = n.upgrade() {
-            n.handle(state::Event::Toggle)
+        if let Some(a) = a.upgrade() {
+            a.toggle()
         }
     });
     tray.on_open_settings(|| log::info!("settings window: not implemented yet"));
