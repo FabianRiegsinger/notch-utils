@@ -48,7 +48,7 @@ renderer = "software"           # software (~35 MB) | gpu (smoother animations, 
 
 [layout]
 mode = "tabs"                   # tabs | grid
-modules = ["timer", "calc", "stats", "clipboard", "shelf", "hud"]  # order shown; leave one out to disable it
+modules = ["timer", "calc", "stats", "clipboard", "shelf", "hud"]  # order shown; add "terminal", "calendar", "ai"
 
 [modules.stats]
 view = "graphs"                 # graphs | detailed
@@ -60,6 +60,9 @@ persist = false                 # save text history to disk (never images)
 [modules.hud]
 volume = true
 battery = true
+[modules.calendar]
+urls = []                       # ICS links (https:// or webcal://)
+refresh_minutes = 15
 ```
 
 Missing keys use the defaults. If the file has an error, the app keeps the last good
@@ -83,7 +86,18 @@ settings and shows the error in the settings window.
 - **Volume & battery HUD**: volume changes, charger plugged/unplugged, full, 20% and 10%
   flash briefly in the notch. No tab of its own.
 
-Planned: terminal, calendar, AI subscription usage.
+- **Terminal**: your shell in the notch (zsh/bash/PowerShell), with colors, scrollback and
+  full-screen programs like vim. Keeps running while the notch is closed. Esc goes to the
+  program; close the notch with the mouse, the hotkey or `--toggle`. Paste: Cmd+V (macOS),
+  Ctrl+Shift+V.
+- **Calendar**: today's remaining events and tomorrow's from ICS links (Google "Secret
+  address in iCal format", iCloud public link, Outlook published calendar). Peeks 15 minutes
+  before an event. The links are secrets: anyone who has one can read that calendar.
+- **AI usage**: your Claude plan's 5-hour and weekly usage (Pro, Max, Ultra), read from
+  Claude Code's status line. Click "Connect Claude Code" in the tab once: it adds
+  `notch-utils --claude-statusline` to `~/.claude/settings.json` (backup first; an existing
+  status line keeps working), and "Disconnect" restores it. Values update while you use
+  Claude Code.
 
 ## Platform notes
 
