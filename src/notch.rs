@@ -15,12 +15,17 @@ use std::time::Duration;
 const SHRINK_AFTER: Duration = Duration::from_millis(270);
 /// Collapsed size on screens without a hardware notch.
 const PILL: (f32, f32) = (160.0, 24.0);
+/// Concave corners that flow into the menu bar (must match the window's extra width).
+const SHOULDER: f32 = 10.0;
+/// Width added on each side of the notch for a live activity.
+const ACTIVITY_SIDE: f32 = 64.0;
 
 pub struct Notch {
     me: Weak<Notch>,
     ui: NotchWindow,
     cfg: Rc<RefCell<Config>>,
     state: Cell<State>,
+    has_activity: Cell<bool>,
     /// Pointer over the window (OS enter/leave), so a HUD doesn't collapse under it.
     hovered: Cell<bool>,
     /// `None` = main screen; `Some(i)` = platform screen index.
@@ -50,6 +55,7 @@ impl Notch {
             ui,
             cfg,
             state: Cell::new(State::Collapsed),
+            has_activity: Cell::new(false),
             hovered: Cell::new(false),
             screen: Cell::new(None),
             leave_timer: slint::Timer::default(),
@@ -200,18 +206,21 @@ impl Notch {
         }
     }
 
-    pub fn hovered(&self) -> bool {
-        self.hovered.get()
-    }
-
     /// Show (`Some`) or clear (`None`) the HUD in the peek area.
-    pub fn set_hud(&self, hud: Option<&crate::modules::Hud>) {
-        self.ui.set_hud_active(hud.is_some());
-        if let Some(h) = hud {
-            self.ui.set_hud_icon(h.icon.into());
-            self.ui.set_hud_level(h.level.unwrap_or(-1.0));
-            self.ui.set_hud_text(h.text.as_str().into());
-            self.ui.set_hud_warn(h.warn);
+    /// Show (`Some`) or clear the live activity beside the notch; the collapsed notch widens.
+    pub fn set_activity(&self, a: Option<&crate::modules::Hud>) {
+        if let Some(a) = a {
+            self.ui.set_activity_icon(a.icon.into());
+            self.ui.set_activity_level(a.level.unwrap_or(-1.0));
+            self.ui.set_activity_text(a.text.as_str().into());
+            self.ui.set_activity_warn(a.warn);
+        }
+        let before = self.size_for(State::Collapsed);
+        if self.has_activity.replace(a.is_some()) != a.is_some() {
+            self.ui.set_activity_active(a.is_some());
+            if self.state.get() == State::Collapsed {
+                self.transition(before, State::Collapsed, State::Collapsed);
+            }
         }
     }
 
@@ -245,6 +254,13 @@ impl Notch {
     /// Re-read layout, appearance and size settings.
     pub fn apply_config(&self, tabs: Vec<ModuleTab>) {
         let count = tabs.len() as i32;
+        // Tab icons sit left and right of the camera: first half left.
+        let half = tabs.len().div_ceil(2);
+        let model = |v: &[ModuleTab]| -> slint::ModelRc<ModuleTab> {
+            Rc::new(VecModel::from(v.to_vec())).into()
+        };
+        self.ui.set_tabs_left(model(&tabs[..half]));
+        self.ui.set_tabs_right(model(&tabs[half..]));
         self.ui.set_modules(Rc::new(VecModel::from(tabs)).into());
         if self.ui.get_active_tab() >= count {
             self.ui.set_active_tab(0);
@@ -288,6 +304,10 @@ impl Notch {
         self.ui.set_shape_color(shape);
         let inset = crate::platform::notch_size(self.screen.get()).map_or(0.0, |(_, h)| h);
         self.ui.set_top_inset(inset);
+        let camera = crate::platform::notch_size(self.screen.get()).map_or(0.0, |(w, _)| w);
+        self.ui.set_camera_width(camera);
+        self.ui.set_shoulder(SHOULDER);
+        self.ui.set_activity_side(ACTIVITY_SIDE);
     }
 
     fn start_leave_timer(&self) {
@@ -310,6 +330,9 @@ impl Notch {
         let cfg = self.cfg.borrow();
         let collapsed = crate::platform::notch_size(self.screen.get()).unwrap_or(PILL);
         match s {
+            State::Collapsed if self.has_activity.get() => {
+                (collapsed.0 + 2.0 * ACTIVITY_SIDE, collapsed.1)
+            }
             State::Collapsed => collapsed,
             State::Peek => (360.0, (collapsed.1 + 12.0).max(48.0)),
             State::Expanded => (
@@ -320,7 +343,11 @@ impl Notch {
     }
 
     fn apply(&self, old: State, new: State) {
-        let (ow, oh) = self.size_for(old);
+        self.transition(self.size_for(old), new, old);
+    }
+
+    /// Animate from `from` (body size) to the size of `new`.
+    fn transition(&self, (ow, oh): (f32, f32), new: State, old: State) {
         let (w, h) = self.size_for(new);
         self.ui.set_state(match new {
             State::Collapsed => NotchState::Collapsed,
@@ -331,13 +358,15 @@ impl Notch {
         // of both sizes, and shrink it to the final size once the animation is done.
         self.shrink_timer.stop();
         let screen = self.screen.get();
-        place(&self.ui, screen, w.max(ow), h.max(oh));
+        // The window also holds the shoulders left and right of the body.
+        let sh = 2.0 * SHOULDER;
+        place(&self.ui, screen, w.max(ow) + sh, h.max(oh));
         if w < ow || h < oh {
             let ui = self.ui.as_weak();
             self.shrink_timer
                 .start(slint::TimerMode::SingleShot, SHRINK_AFTER, move || {
                     if let Some(ui) = ui.upgrade() {
-                        place(&ui, screen, w, h);
+                        place(&ui, screen, w + sh, h);
                     }
                 });
         }

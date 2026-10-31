@@ -197,6 +197,17 @@ impl Module for AiUsage {
         self.sync();
     }
 
+    fn activity(&self) -> Option<super::Hud> {
+        let u = self.usage.borrow();
+        let w = effective(u.as_ref()?.five_hour, now())?;
+        (w.used_percentage >= PEEK_AT).then(|| super::Hud {
+            icon: "ai",
+            level: None,
+            text: format!("{:.0}%", w.used_percentage),
+            warn: w.used_percentage >= 95.0,
+        })
+    }
+
     fn peek(&self) -> Option<String> {
         let u = self.usage.borrow();
         let w = effective(u.as_ref()?.five_hour, now())?;

@@ -476,6 +476,23 @@ impl Module for CalendarModule {
         self.sync();
     }
 
+    fn activity(&self) -> Option<super::Hud> {
+        let now = Local::now();
+        let next = self
+            .events
+            .borrow()
+            .iter()
+            .find(|e| !e.all_day && e.start > now)
+            .cloned()?;
+        let mins = (next.start - now).num_minutes();
+        (mins <= PEEK_MINUTES).then(|| super::Hud {
+            icon: "calendar",
+            level: None,
+            text: format!("{} min", mins.max(1)),
+            warn: false,
+        })
+    }
+
     fn peek(&self) -> Option<String> {
         let now = Local::now();
         let next = self

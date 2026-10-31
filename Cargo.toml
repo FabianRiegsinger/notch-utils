@@ -20,7 +20,7 @@ notify = "8"
 rrule = "0.14"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-slint = { version = "1.18.1", default-features = false, features = ["std", "compat-1-2", "accessibility", "backend-winit", "renderer-femtovg", "renderer-software", "system-tray", "unstable-winit-030"] }
+slint = { version = "1.18.1", default-features = false, features = ["std", "compat-1-2", "accessibility", "backend-winit", "renderer-femtovg", "renderer-software", "software-renderer-path", "system-tray", "unstable-winit-030"] }
 starship-battery = "0.12.0"
 sysinfo = "0.40.1"
 toml = "1.1.8"
@@ -39,10 +39,14 @@ objc2 = "0.6.5"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
 
+# Vendored crates, each with one marked fix.
 # winit 0.30.13 with one fix: don't abort on incomplete KVO change dictionaries (macOS).
 # See vendor/winit/src/platform_impl/macos/window_delegate.rs ("notch-utils patch").
 [patch.crates-io]
 winit = { path = "vendor/winit" }
+# softbuffer 0.4.8 with one fix: keep the alpha channel on macOS (transparent software-rendered
+# windows). See vendor/softbuffer/src/backends/cg.rs ("notch-utils patch").
+softbuffer = { path = "vendor/softbuffer" }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant"] }

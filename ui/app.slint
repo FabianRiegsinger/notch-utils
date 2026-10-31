@@ -1,4 +1,4 @@
-import { Palette, Pill } from "components.slint";
+import { Palette, Pill, Icon, Card } from "components.slint";
 import { TimerView, TimerState } from "modules/timer.slint";
 import { SettingsWindow, ModuleEntry } from "settings.slint";
 import { CalcView, CalcState } from "modules/calc.slint";
@@ -16,6 +16,8 @@ export enum NotchState { collapsed, peek, expanded }
 export struct ModuleTab {
     id: string,
     title: string,
+    // Position in the full module list (active-tab refers to it).
+    index: int,
 }
 
 // Picks a module's full view by id. Adding a module = one line here.
@@ -31,6 +33,89 @@ component ModuleView {
     if root.id == "terminal": TermView { }
 }
 
+component TabIcon inherits Rectangle {
+    in property <ModuleTab> tab;
+    in property <bool> active;
+    callback select(int);
+    width: 26px;
+    height: 26px;
+    border-radius: 13px;
+    background: root.active ? Palette.surface-hover : touch.has-hover ? Palette.surface : transparent;
+    animate background { duration: 150ms; }
+    accessible-role: AccessibleRole.tab;
+    accessible-label: root.tab.title;
+    accessible-action-default => { root.select(root.tab.index); }
+    Icon {
+        width: 15px;
+        height: 15px;
+        name: root.tab.id;
+        tint: root.active ? Palette.fg : Palette.fg-dim;
+    }
+    touch := TouchArea { clicked => { root.select(root.tab.index); } }
+}
+
+// Live activity beside the notch: colored icon left of the camera, value right of it.
+component Activity inherits Rectangle {
+    in property <string> icon;
+    in property <string> text;
+    in property <float> level: -1;
+    in property <bool> warn;
+    in property <length> side;
+    property <color> tint: root.warn ? Palette.red
+        : root.icon == "timer" ? Palette.orange
+        : root.icon == "bolt" || root.icon == "battery" ? Palette.green
+        : root.icon == "calendar" ? Palette.accent
+        : root.icon == "ai" ? Palette.purple
+        : Palette.fg;
+
+    // Left: icon (a ring for progress), right: value.
+    Rectangle {
+        x: 0;
+        width: root.side;
+        if root.level >= 0 && root.icon == "timer": Path {
+            width: 16px;
+            height: 16px;
+            viewbox-width: 16;
+            viewbox-height: 16;
+            stroke: root.tint;
+            stroke-width: 2.5px;
+            // Arc from 12 o'clock, clockwise by `level`.
+            property <float> a: clamp(root.level, 0.001, 0.999) * 360;
+            commands: "M 8 1.5 A 6.5 6.5 0 " + (self.a > 180 ? "1" : "0") + " 1 "
+                + (8 + 6.5 * sin(self.a * 1deg)) + " " + (8 - 6.5 * cos(self.a * 1deg));
+        }
+        if !(root.level >= 0 && root.icon == "timer"): Icon {
+            width: 15px;
+            height: 15px;
+            name: root.icon;
+            tint: root.tint;
+        }
+    }
+    Rectangle {
+        x: root.width - root.side;
+        width: root.side;
+        if root.level >= 0 && root.icon != "timer": Rectangle {
+            width: parent.width - 22px;
+            height: 5px;
+            border-radius: 2.5px;
+            background: Palette.surface-hover;
+            Rectangle {
+                x: 0;
+                width: parent.width * clamp(root.level, 0, 1);
+                border-radius: 2.5px;
+                background: root.tint;
+                animate width { duration: 120ms; }
+            }
+        }
+        if root.level < 0 || root.icon == "timer": Text {
+            text: root.text;
+            color: root.tint;
+            font-size: 12px;
+            font-weight: 600;
+        }
+    }
+}
+
 export component NotchWindow inherits Window {
     title: "notch-utils";
     no-frame: true;
@@ -39,138 +124,162 @@ export component NotchWindow inherits Window {
 
     in property <bool> on-top: true;
     in property <NotchState> state: NotchState.collapsed;
-    // Shape size animates; the window itself is resized from Rust (grow first, shrink after).
+    // Body size; animates. The window is resized from Rust (grow first, shrink after) and is
+    // 2 x shoulder wider than the body.
     in property <length> shape-width: 160px;
     in property <length> shape-height: 24px;
+    in property <length> shoulder: 10px;
     in property <color> shape-color: black;
-    // Height hidden by the camera housing; content starts below it.
+    // Height of the camera housing (0 without a hardware notch) and its width.
     in property <length> top-inset: 0px;
+    in property <length> camera-width: 0px;
     in property <string> peek-text;
-    // HUD (volume, battery) replaces the peek text while active.
-    in property <bool> hud-active;
-    in property <string> hud-icon;
-    in property <float> hud-level: -1; // 0..1 for a bar, negative = no bar
-    in property <string> hud-text;
-    in property <bool> hud-warn;
+    // Live activity beside the notch (only drawn while collapsed).
+    in property <bool> activity-active;
+    in property <string> activity-icon;
+    in property <string> activity-text;
+    in property <float> activity-level: -1;
+    in property <bool> activity-warn;
+    in property <length> activity-side: 64px;
     in property <[ModuleTab]> modules;
+    in property <[ModuleTab]> tabs-left;
+    in property <[ModuleTab]> tabs-right;
     in property <bool> grid;
     in-out property <int> active-tab;
 
     callback clicked();
     callback tab-changed(int);
 
-    shape := Rectangle {
+    property <bool> open: root.state == NotchState.expanded;
+    property <length> radius: root.open ? 28px : min(root.shape-height / 2, 12px);
+    // Height of the top band holding the tab icons.
+    property <length> band: max(root.top-inset, 30px);
+
+    function select(i: int) {
+        root.active-tab = i;
+        root.tab-changed(i);
+    }
+
+    // Body + concave shoulders into the menu bar, drawn 1:1 (viewbox = size).
+    Path {
+        x: (root.width - self.width) / 2;
+        y: 0;
+        width: root.shape-width + 2 * root.shoulder;
+        height: root.shape-height;
+        viewbox-width: self.width / 1px;
+        viewbox-height: self.height / 1px;
+        fill: root.shape-color;
+        property <float> w: root.shape-width / 1px;
+        property <float> h: root.shape-height / 1px;
+        property <float> s: root.shoulder / 1px;
+        property <float> r: min(root.radius, root.shape-height / 2) / 1px;
+        commands: "M 0 0 L " + (self.w + 2 * self.s) + " 0"
+            + " Q " + (self.w + self.s) + " 0 " + (self.w + self.s) + " " + self.s
+            + " L " + (self.w + self.s) + " " + (self.h - self.r)
+            + " Q " + (self.w + self.s) + " " + self.h + " " + (self.w + self.s - self.r) + " " + self.h
+            + " L " + (self.s + self.r) + " " + self.h
+            + " Q " + self.s + " " + self.h + " " + self.s + " " + (self.h - self.r)
+            + " L " + self.s + " " + self.s
+            + " Q " + self.s + " 0 0 0 Z";
+    }
+
+    body := Rectangle {
         x: (root.width - self.width) / 2;
         y: 0;
         width: root.shape-width;
         height: root.shape-height;
-        background: root.shape-color;
-        border-bottom-left-radius: root.state == NotchState.expanded ? 24px : min(self.height / 2, 12px);
-        border-bottom-right-radius: self.border-bottom-left-radius;
         clip: true;
 
-        animate width, height { duration: 260ms; easing: ease-out-back; }
-        animate border-bottom-left-radius { duration: 200ms; }
+        animate width, height { duration: 380ms; easing: cubic-bezier(0.3, 1.25, 0.45, 1); }
 
         // Behind the content: catches clicks that no module control handled.
         TouchArea {
             clicked => { root.clicked(); }
         }
 
-        if root.state == NotchState.peek && root.hud-active: HorizontalLayout {
-            y: root.top-inset;
-            height: parent.height - root.top-inset;
+        if root.state == NotchState.collapsed && root.activity-active: Activity {
+            height: max(root.top-inset, root.shape-height);
             width: parent.width;
-            padding-left: 18px;
-            padding-right: 18px;
-            spacing: 10px;
-            Image {
-                width: 18px;
-                image-fit: contain;
-                colorize: root.hud-warn ? #ff453a : Palette.fg;
-                source: root.hud-icon == "muted" ? @image-url("../assets/icons/muted.svg")
-                    : root.hud-icon == "bolt" ? @image-url("../assets/icons/bolt.svg")
-                    : root.hud-icon == "battery" ? @image-url("../assets/icons/battery.svg")
-                    : root.hud-icon == "battery-low" ? @image-url("../assets/icons/battery-low.svg")
-                    : root.hud-icon == "timer" ? @image-url("../assets/icons/timer.svg")
-                    : @image-url("../assets/icons/volume.svg");
-            }
-            if root.hud-level >= 0: Rectangle {
-                y: (parent.height - self.height) / 2;
-                height: 6px;
-                horizontal-stretch: 1;
-                border-radius: 3px;
-                background: Palette.surface-hover;
-                Rectangle {
-                    x: 0;
-                    width: parent.width * clamp(root.hud-level, 0, 1);
-                    border-radius: 3px;
-                    background: root.hud-warn ? #ff453a : Palette.fg;
-                    animate width { duration: 120ms; }
-                }
-            }
-            Text {
-                text: root.hud-text;
-                color: root.hud-warn ? #ff453a : Palette.fg;
-                font-size: 13px;
-                vertical-alignment: center;
-                horizontal-stretch: root.hud-level >= 0 ? 0 : 1;
-                horizontal-alignment: root.hud-level >= 0 ? right : left;
-            }
+            icon: root.activity-icon;
+            text: root.activity-text;
+            level: root.activity-level;
+            warn: root.activity-warn;
+            side: root.activity-side;
+            opacity: 0;
+            init => { self.opacity = 1; }
+            animate opacity { duration: 200ms; delay: 150ms; }
         }
 
-        if root.state == NotchState.peek && !root.hud-active: Text {
+        if root.state == NotchState.peek: Text {
             y: root.top-inset;
             height: parent.height - root.top-inset;
             width: parent.width;
             text: root.peek-text;
             color: Palette.fg;
             font-size: 13px;
+            font-weight: 500;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
 
-        if root.state == NotchState.expanded: VerticalLayout {
-            padding: 14px;
-            padding-top: max(root.top-inset, 10px) + 6px;
-            spacing: 10px;
+        if root.open: Rectangle {
+            opacity: 0;
+            init => { self.opacity = 1; }
+            animate opacity { duration: 220ms; delay: 120ms; }
 
-            if !root.grid && root.modules.length > 1: HorizontalLayout {
-                alignment: center;
-                spacing: 6px;
-                for m[i] in root.modules: Pill {
-                    text: m.title;
-                    active: i == root.active-tab;
-                    clicked => {
-                        root.active-tab = i;
-                        root.tab-changed(i);
-                    }
+            // Tab icons in the camera band, left and right of the notch.
+            if root.modules.length > 1: HorizontalLayout {
+                x: parent.width / 2 - root.camera-width / 2 - 12px - self.preferred-width;
+                y: (root.band - 26px) / 2;
+                height: 26px;
+                spacing: 4px;
+                for t in root.tabs-left: TabIcon {
+                    tab: t;
+                    active: t.index == root.active-tab;
+                    select(i) => { root.select(i); }
+                }
+            }
+            if root.modules.length > 1: HorizontalLayout {
+                x: parent.width / 2 + root.camera-width / 2 + 12px;
+                y: (root.band - 26px) / 2;
+                height: 26px;
+                spacing: 4px;
+                for t in root.tabs-right: TabIcon {
+                    tab: t;
+                    active: t.index == root.active-tab;
+                    select(i) => { root.select(i); }
                 }
             }
 
-            if root.modules.length == 0: Text {
-                text: "No modules enabled. Open Settings from the tray icon.";
-                color: Palette.fg-dim;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                vertical-stretch: 1;
-            }
-
-            if !root.grid && root.modules.length > 0: ModuleView {
-                id: root.modules[min(root.active-tab, root.modules.length - 1)].id;
-                vertical-stretch: 1;
-            }
-
-            if root.grid: HorizontalLayout {
+            content := VerticalLayout {
+                y: root.band + 4px;
+                height: parent.height - self.y;
+                padding: 16px;
+                padding-top: 6px;
                 spacing: 10px;
-                vertical-stretch: 1;
-                for m in root.modules: Rectangle {
-                    background: Palette.surface;
-                    border-radius: 16px;
-                    VerticalLayout {
-                        padding: 10px;
-                        Text { text: m.title; color: Palette.fg-dim; font-size: 11px; }
-                        ModuleView { id: m.id; vertical-stretch: 1; }
+
+                if root.modules.length == 0: Text {
+                    text: "No modules enabled. Open Settings from the menu bar icon.";
+                    color: Palette.fg-dim;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    vertical-stretch: 1;
+                }
+
+                if !root.grid && root.modules.length > 0: ModuleView {
+                    id: root.modules[min(root.active-tab, root.modules.length - 1)].id;
+                    vertical-stretch: 1;
+                }
+
+                if root.grid: HorizontalLayout {
+                    spacing: 10px;
+                    vertical-stretch: 1;
+                    for m in root.modules: Card {
+                        VerticalLayout {
+                            padding: 10px;
+                            Text { text: m.title; color: Palette.fg-dim; font-size: 11px; }
+                            ModuleView { id: m.id; vertical-stretch: 1; }
+                        }
                     }
                 }
             }

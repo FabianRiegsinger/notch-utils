@@ -203,6 +203,27 @@ impl Module for Timer {
         self.sync();
     }
 
+    fn activity(&self) -> Option<super::Hud> {
+        let c = self.clock.borrow();
+        let now = Instant::now();
+        if c.finished {
+            return Some(super::Hud {
+                icon: "timer",
+                level: None,
+                text: "Done".into(),
+                warn: true,
+            });
+        }
+        c.running().then(|| super::Hud {
+            icon: "timer",
+            // Countdown: remaining fraction drives the ring; stopwatch: plain icon.
+            level: (!c.stopwatch)
+                .then(|| c.shown(now).as_secs_f32() / c.duration.as_secs_f32().max(1.0)),
+            text: format(c.shown(now)),
+            warn: false,
+        })
+    }
+
     fn peek(&self) -> Option<String> {
         let c = self.clock.borrow();
         if c.finished {

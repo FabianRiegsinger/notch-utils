@@ -39,6 +39,10 @@ pub struct App {
     hotkey: std::cell::OnceCell<Hotkey>,
     reload_timer: slint::Timer,
     hud_timer: slint::Timer,
+    /// HUD currently shown beside the notch.
+    hud: RefCell<Option<crate::modules::Hud>>,
+    /// Re-checks time-based activities (upcoming event, limits).
+    activity_timer: slint::Timer,
     follow_timer: slint::Timer,
 }
 
@@ -86,12 +90,24 @@ impl App {
                 hotkey: std::cell::OnceCell::new(),
                 reload_timer: slint::Timer::default(),
                 hud_timer: slint::Timer::default(),
+                hud: RefCell::default(),
+                activity_timer: slint::Timer::default(),
                 follow_timer: slint::Timer::default(),
             }
         });
         APP.with(|a| *a.borrow_mut() = Rc::downgrade(&app));
         app.add_notch(None)?;
         app.apply_all();
+        let me = app.me.clone();
+        app.activity_timer.start(
+            slint::TimerMode::Repeated,
+            Duration::from_secs(15),
+            move || {
+                if let Some(app) = me.upgrade() {
+                    app.refresh_activity()
+                }
+            },
+        );
         let me = app.me.clone();
         slint::Timer::single_shot(Duration::ZERO, move || {
             if let Some(app) = me.upgrade() {
@@ -190,9 +206,11 @@ impl App {
             .enabled()
             .iter()
             .filter(|m| m.has_view())
-            .map(|m| ModuleTab {
+            .enumerate()
+            .map(|(i, m)| ModuleTab {
                 id: m.id().into(),
                 title: m.title().into(),
+                index: i as i32,
             })
             .collect();
         for id in &self.cfg.borrow().layout.modules {
@@ -354,6 +372,7 @@ impl App {
 
     /// First enabled module with a peek item wins; otherwise show the clock.
     fn refresh_peek(&self) {
+        self.refresh_activity();
         let Ok(notches) = self.notches.try_borrow() else {
             return;
         };
@@ -370,24 +389,32 @@ impl App {
         }
     }
 
-    /// Flash a HUD for HUD_TIME; repeated calls (e.g. holding a volume key) extend it.
+    /// Show a HUD beside the notch for HUD_TIME; repeated calls (holding a volume key) extend it.
     fn hud(&self, h: crate::modules::Hud) {
-        for n in self.notches.borrow().iter() {
-            n.set_hud(Some(&h));
-            n.handle(Event::Hud);
-        }
+        *self.hud.borrow_mut() = Some(h);
+        self.refresh_activity();
         let me = self.me.clone();
         self.hud_timer
             .start(slint::TimerMode::SingleShot, HUD_TIME, move || {
                 let Some(app) = me.upgrade() else { return };
-                for n in app.notches.borrow().iter() {
-                    if !n.hovered() {
-                        n.handle(Event::HudTimeout);
-                    }
-                    n.set_hud(None);
-                }
-                app.refresh_peek();
+                app.hud.borrow_mut().take();
+                app.refresh_activity();
             });
+    }
+
+    /// Live activity beside the notch: a HUD wins, then the first module that has one.
+    fn refresh_activity(&self) {
+        let a = self
+            .hud
+            .borrow()
+            .clone()
+            .or_else(|| self.enabled().iter().find_map(|m| m.activity()));
+        let Ok(notches) = self.notches.try_borrow() else {
+            return;
+        };
+        for n in notches.iter() {
+            n.set_activity(a.as_ref());
+        }
     }
 
     fn alert(&self) {

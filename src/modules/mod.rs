@@ -82,6 +82,10 @@ pub trait Module {
     fn drop_file(&self, _path: &std::path::Path) -> bool {
         false
     }
+    /// Live activity shown beside the collapsed notch (timer running, event soon, ...).
+    fn activity(&self) -> Option<Hud> {
+        None
+    }
     /// False for modules that only show in the peek (no tab).
     fn has_view(&self) -> bool {
         true

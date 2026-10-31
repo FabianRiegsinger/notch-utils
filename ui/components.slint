@@ -1,11 +1,54 @@
 // Small widgets styled for the black notch (std-widgets follow the OS style, which clashes).
 
+// Apple dark palette. fg/surface are set from Rust (light variant for theme = "system").
 export global Palette {
     in property <color> accent: #0A84FF;
     in property <color> fg: white;
-    in property <color> fg-dim: #ffffff99;
-    in property <color> surface: #ffffff14;
-    in property <color> surface-hover: #ffffff26;
+    in property <color> fg-dim: #ebebf599;
+    in property <color> fg-faint: #ebebf54d;
+    in property <color> surface: #1c1c1e;
+    in property <color> surface-hover: #2c2c2e;
+    in property <color> separator: #ffffff1a;
+    out property <color> green: #30d158;
+    out property <color> orange: #ff9f0a;
+    out property <color> red: #ff453a;
+    out property <color> purple: #bf5af2;
+    out property <color> teal: #64d2ff;
+    out property <color> yellow: #ffd60a;
+}
+
+// Monochrome line icon by id (assets/icons/<id>.svg), tinted with `tint`.
+export component Icon inherits Image {
+    in property <string> name;
+    in property <color> tint: Palette.fg;
+    colorize: root.tint;
+    image-fit: contain;
+    source: root.name == "home" ? @image-url("../assets/icons/home.svg")
+        : root.name == "timer" ? @image-url("../assets/icons/timer.svg")
+        : root.name == "calc" ? @image-url("../assets/icons/calc.svg")
+        : root.name == "stats" ? @image-url("../assets/icons/stats.svg")
+        : root.name == "clipboard" ? @image-url("../assets/icons/clipboard.svg")
+        : root.name == "shelf" ? @image-url("../assets/icons/shelf.svg")
+        : root.name == "terminal" ? @image-url("../assets/icons/terminal.svg")
+        : root.name == "calendar" ? @image-url("../assets/icons/calendar.svg")
+        : root.name == "ai" ? @image-url("../assets/icons/ai.svg")
+        : root.name == "muted" ? @image-url("../assets/icons/muted.svg")
+        : root.name == "volume" ? @image-url("../assets/icons/volume.svg")
+        : root.name == "bolt" ? @image-url("../assets/icons/bolt.svg")
+        : root.name == "battery" ? @image-url("../assets/icons/battery.svg")
+        : root.name == "battery-low" ? @image-url("../assets/icons/battery-low.svg")
+        : root.name == "play" ? @image-url("../assets/icons/play.svg")
+        : root.name == "pause" ? @image-url("../assets/icons/pause.svg")
+        : root.name == "reset" ? @image-url("../assets/icons/reset.svg")
+        : root.name == "file" ? @image-url("../assets/icons/file.svg")
+        : root.name == "folder" ? @image-url("../assets/icons/folder.svg")
+        : @image-url("../assets/icons/settings.svg");
+}
+
+// Card used across module views.
+export component Card inherits Rectangle {
+    background: Palette.surface;
+    border-radius: 14px;
 }
 
 export component Pill inherits Rectangle {
