@@ -3,6 +3,8 @@ import { Palette, Pill } from "../components.slint";
 export global TimerState {
     in property <string> display: "05:00";
     in property <bool> running;
+    // Ring fill 0..1: remaining (timer) or seconds of the minute (stopwatch).
+    in property <float> progress: 1;
     in property <bool> stopwatch;
     callback start-pause();
     callback reset();

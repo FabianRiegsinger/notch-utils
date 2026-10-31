@@ -1,0 +1,248 @@
+import { Palette, Icon, Card } from "../components.slint";
+import { TimerState } from "timer.slint";
+import { CalState } from "calendar.slint";
+import { StatsState } from "stats.slint";
+import { AiState } from "ai.slint";
+
+export global HomeState {
+    in property <string> date;
+    in property <bool> has-battery;
+    in property <int> battery-pct;
+    in property <bool> charging;
+}
+
+// Circular progress from 12 o'clock, clockwise.
+export component Ring inherits Rectangle {
+    in property <float> progress;
+    in property <color> tint: Palette.orange;
+    in property <length> thickness: 5px;
+    property <float> size: self.width / 1px;
+    property <float> r: (self.size - self.thickness / 1px) / 2;
+    property <float> c: self.size / 2;
+    property <float> a: clamp(root.progress, 0.0005, 0.9995) * 360;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: Palette.surface-hover;
+        stroke-width: root.thickness;
+        commands: "M " + root.c + " " + (root.c - root.r) + " A " + root.r + " " + root.r + " 0 1 1 " + (root.c - 0.01) + " " + (root.c - root.r);
+    }
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: root.tint;
+        stroke-width: root.thickness;
+        commands: "M " + root.c + " " + (root.c - root.r) + " A " + root.r + " " + root.r + " 0 "
+            + (root.a > 180 ? "1" : "0") + " 1 "
+            + (root.c + root.r * sin(root.a * 1deg)) + " " + (root.c - root.r * cos(root.a * 1deg));
+    }
+    @children
+}
+
+component RoundButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <color> tint: Palette.fg;
+    in property <color> base: Palette.surface-hover;
+    callback clicked();
+    width: 34px;
+    height: 34px;
+    border-radius: 17px;
+    background: touch.pressed ? root.base.brighter(0.3) : touch.has-hover ? root.base.brighter(0.15) : root.base;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    Icon { width: 14px; height: 14px; name: root.icon; tint: root.tint; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+component MiniBar inherits VerticalLayout {
+    in property <string> label;
+    in property <float> pct;
+    spacing: 3px;
+    HorizontalLayout {
+        Text { text: root.label; color: Palette.fg-dim; font-size: 10px; horizontal-stretch: 1; }
+        Text { text: Math.round(root.pct) + "%"; color: Palette.fg; font-size: 10px; font-weight: 600; }
+    }
+    Rectangle {
+        height: 4px;
+        border-radius: 2px;
+        background: Palette.surface-hover;
+        Rectangle {
+            x: 0;
+            width: parent.width * clamp(root.pct / 100, 0, 1);
+            border-radius: 2px;
+            background: root.pct >= 90 ? Palette.red : Palette.purple;
+        }
+    }
+}
+
+component Dot inherits Rectangle {
+    in property <color> tint;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background: root.tint;
+}
+
+export component HomeView inherits HorizontalLayout {
+    spacing: 18px;
+    padding-left: 4px;
+    padding-right: 4px;
+
+    // Timer
+    VerticalLayout {
+        width: 130px;
+        alignment: center;
+        spacing: 10px;
+        HorizontalLayout {
+            alignment: center;
+            glow := Rectangle {
+                width: 92px;
+                height: 92px;
+                border-radius: 46px;
+                drop-shadow-blur: TimerState.running ? 24px : 0px;
+                drop-shadow-color: Palette.orange.with-alpha(0.35);
+                background: #000;
+                Ring {
+                    width: 92px;
+                    height: 92px;
+                    progress: TimerState.progress;
+                    tint: TimerState.running ? Palette.orange : Palette.fg-faint;
+                    Text {
+                        text: TimerState.display;
+                        color: Palette.fg;
+                        font-size: 19px;
+                        font-weight: 600;
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 10px;
+            RoundButton {
+                icon: TimerState.running ? "pause" : "play";
+                label: TimerState.running ? "Pause timer" : "Start timer";
+                base: Palette.orange.with-alpha(0.22);
+                tint: Palette.orange;
+                clicked => { TimerState.start-pause(); }
+            }
+            RoundButton { icon: "reset"; label: "Reset timer"; tint: Palette.fg-dim; clicked => { TimerState.reset(); } }
+        }
+    }
+
+    Rectangle { width: 1px; background: Palette.separator; }
+
+    // Week + next event
+    VerticalLayout {
+        horizontal-stretch: 1;
+        alignment: center;
+        spacing: 10px;
+        Text { text: HomeState.date; color: Palette.fg-dim; font-size: 11px; font-weight: 500; }
+        HorizontalLayout {
+            spacing: 2px;
+            for d in CalState.week: VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 3px;
+                Text {
+                    text: d.label;
+                    color: d.today ? Palette.fg : Palette.fg-dim;
+                    font-size: 9px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 26px;
+                        height: 26px;
+                        border-radius: 13px;
+                        background: d.today ? Palette.accent : transparent;
+                        Text { text: d.day; color: Palette.fg; font-size: 14px; font-weight: 600; }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 2px;
+                    height: 4px;
+                    if d.dots > 0: Dot { tint: Palette.accent; }
+                    if d.dots > 1: Dot { tint: Palette.purple; }
+                    if d.dots > 2: Dot { tint: Palette.orange; }
+                }
+            }
+        }
+        Card {
+            height: 48px;
+            border-radius: 12px;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 10px;
+                Rectangle {
+                    width: 3px;
+                    y: 9px;
+                    height: parent.height - 18px;
+                    border-radius: 1.5px;
+                    background: CalState.has-next ? Palette.accent : Palette.fg-faint;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    Text {
+                        text: CalState.has-next ? CalState.next-title : (CalState.configured ? "No upcoming events" : "Add a calendar in Settings");
+                        color: CalState.has-next ? Palette.fg : Palette.fg-dim;
+                        font-size: 13px;
+                        font-weight: 600;
+                        overflow: elide;
+                    }
+                    if CalState.has-next: Text {
+                        text: CalState.next-when + (CalState.next-location != "" ? " · " + CalState.next-location : "");
+                        color: Palette.fg-dim;
+                        font-size: 11px;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle { width: 1px; background: Palette.separator; }
+
+    // Battery, Claude, system
+    VerticalLayout {
+        width: 116px;
+        alignment: center;
+        spacing: 12px;
+        if HomeState.has-battery: HorizontalLayout {
+            spacing: 6px;
+            Icon {
+                width: 18px;
+                height: 18px;
+                name: HomeState.charging ? "bolt" : (HomeState.battery-pct <= 20 ? "battery-low" : "battery");
+                tint: !HomeState.charging && HomeState.battery-pct <= 20 ? Palette.red : Palette.green;
+            }
+            Text {
+                text: HomeState.battery-pct + "%";
+                color: !HomeState.charging && HomeState.battery-pct <= 20 ? Palette.red : Palette.green;
+                font-size: 16px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+        }
+        if AiState.has-data: VerticalLayout {
+            spacing: 6px;
+            MiniBar { label: "Claude 5 h"; pct: AiState.five-pct; }
+            MiniBar { label: "Claude week"; pct: AiState.week-pct; }
+        }
+        VerticalLayout {
+            spacing: 2px;
+            Text { text: "CPU  " + StatsState.cpu-text; color: Palette.fg-dim; font-size: 11px; }
+            Text { text: "RAM  " + StatsState.mem-text; color: Palette.fg-dim; font-size: 11px; overflow: elide; }
+        }
+    }
+}

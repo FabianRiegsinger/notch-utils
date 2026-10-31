@@ -132,6 +132,11 @@ impl Timer {
             let Some(ui) = w.upgrade() else { return false };
             let g = ui.global::<TimerState>();
             g.set_display(display.clone());
+            g.set_progress(if c.stopwatch {
+                (c.shown(now).as_secs_f32() % 60.0) / 60.0
+            } else {
+                c.shown(now).as_secs_f32() / c.duration.as_secs_f32().max(1.0)
+            });
             g.set_running(c.running());
             g.set_stopwatch(c.stopwatch);
             true

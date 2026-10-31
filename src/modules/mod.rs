@@ -5,6 +5,7 @@ mod ai;
 mod calc;
 mod calendar;
 mod clipboard;
+mod home;
 mod hud;
 mod shelf;
 mod stats;
@@ -82,6 +83,10 @@ pub trait Module {
     fn drop_file(&self, _path: &std::path::Path) -> bool {
         false
     }
+    /// Other modules whose data this view shows (they count as visible while it is).
+    fn embeds(&self) -> &'static [&'static str] {
+        &[]
+    }
     /// Live activity shown beside the collapsed notch (timer running, event soon, ...).
     fn activity(&self) -> Option<Hud> {
         None
@@ -94,6 +99,7 @@ pub trait Module {
 
 pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
     vec![
+        home::Home::new(ctx.clone()),
         timer::Timer::new(ctx.clone()),
         calc::Calc::new(ctx.clone()),
         stats::Stats::new(ctx.clone()),

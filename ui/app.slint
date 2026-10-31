@@ -6,10 +6,11 @@ import { StatsView, StatsState, LabeledValue } from "modules/stats.slint";
 import { ClipboardView, ClipState, ClipEntry } from "modules/clipboard.slint";
 import { ShelfView, ShelfState, ShelfEntry } from "modules/shelf.slint";
 import { AiView, AiState } from "modules/ai.slint";
-import { CalendarView, CalState, CalEvent } from "modules/calendar.slint";
+import { CalendarView, CalState, CalEvent, CalDay } from "modules/calendar.slint";
 import { TermView, TermState, TermLine, TermRun } from "modules/terminal.slint";
+import { HomeView, HomeState } from "modules/home.slint";
 
-export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun }
+export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay }
 
 export enum NotchState { collapsed, peek, expanded }
 
@@ -23,6 +24,7 @@ export struct ModuleTab {
 // Picks a module's full view by id. Adding a module = one line here.
 component ModuleView {
     in property <string> id;
+    if root.id == "home": HomeView { }
     if root.id == "timer": TimerView { }
     if root.id == "calc": CalcView { }
     if root.id == "stats": StatsView { }

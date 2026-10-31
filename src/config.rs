@@ -121,9 +121,18 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             mode: LayoutMode::default(),
-            modules: ["timer", "calc", "stats", "clipboard", "shelf", "hud"]
-                .map(String::from)
-                .to_vec(),
+            modules: [
+                "home",
+                "timer",
+                "calc",
+                "stats",
+                "clipboard",
+                "shelf",
+                "calendar",
+                "hud",
+            ]
+            .map(String::from)
+            .to_vec(),
         }
     }
 }
@@ -267,7 +276,16 @@ mod tests {
         assert_eq!(c.layout.mode, LayoutMode::Grid);
         assert_eq!(
             c.layout.modules,
-            ["timer", "calc", "stats", "clipboard", "shelf", "hud"]
+            [
+                "home",
+                "timer",
+                "calc",
+                "stats",
+                "clipboard",
+                "shelf",
+                "calendar",
+                "hud"
+            ]
         );
         assert!(c.modules.hud.volume && c.modules.hud.battery);
         assert_eq!(c.modules.clipboard.max_entries, 50);

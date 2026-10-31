@@ -353,12 +353,20 @@ impl App {
     }
 
     fn update_visibility(&self) {
-        let now: HashSet<String> = self
+        let mut now: HashSet<String> = self
             .notches
             .borrow()
             .iter()
             .flat_map(|n| n.visible_modules())
             .collect();
+        // Modules shown inside another view (Home) count as visible too.
+        let embedded: Vec<String> = self
+            .modules
+            .iter()
+            .filter(|m| now.contains(m.id()))
+            .flat_map(|m| m.embeds().iter().map(|s| s.to_string()))
+            .collect();
+        now.extend(embedded);
         let before = self.shown.replace(now.clone());
         for m in &self.modules {
             match (before.contains(m.id()), now.contains(m.id())) {

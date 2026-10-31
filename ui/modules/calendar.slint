@@ -8,7 +8,19 @@ export struct CalEvent {
     now: bool,
 }
 
+export struct CalDay {
+    label: string,
+    day: int,
+    today: bool,
+    dots: int,
+}
+
 export global CalState {
+    in property <[CalDay]> week;
+    in property <bool> has-next;
+    in property <string> next-title;
+    in property <string> next-when;
+    in property <string> next-location;
     in property <[CalEvent]> today;
     in property <[CalEvent]> tomorrow;
     in property <bool> configured;

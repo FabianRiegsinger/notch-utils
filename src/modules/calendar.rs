@@ -4,8 +4,10 @@
 
 use super::{Ctx, Module};
 use crate::config::Config;
-use crate::{CalEvent, CalState, NotchWindow};
-use chrono::{DateTime, Duration as Span, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use crate::{CalDay, CalEvent, CalState, NotchWindow};
+use chrono::{
+    DateTime, Datelike, Duration as Span, Local, NaiveDate, NaiveDateTime, TimeZone, Utc,
+};
 use slint::{ComponentHandle, VecModel};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -264,6 +266,57 @@ pub fn parse_ics(text: &str, from: DateTime<Local>, to: DateTime<Local>) -> Vec<
     out
 }
 
+pub struct WeekDay {
+    pub label: &'static str,
+    pub day: u32,
+    pub today: bool,
+    /// Events that day, capped at 3 (dots under the date).
+    pub dots: usize,
+}
+
+/// Mon–Sun of the week containing `today`.
+pub fn week(events: &[Event], today: NaiveDate) -> Vec<WeekDay> {
+    const LABELS: [&str; 7] = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+    let monday = today - Span::days(today.weekday().num_days_from_monday() as i64);
+    (0..7)
+        .map(|i| {
+            let d = monday + Span::days(i);
+            let (from, to) = (day_start(d), day_start(d + Span::days(1)));
+            WeekDay {
+                label: LABELS[i as usize],
+                day: d.day(),
+                today: d == today,
+                dots: events
+                    .iter()
+                    .filter(|e| e.start < to && e.end > from)
+                    .count()
+                    .min(3),
+            }
+        })
+        .collect()
+}
+
+/// The running or next timed event: (title, "In 9 min · 09:50", location).
+pub fn next_event(events: &[Event], now: DateTime<Local>) -> Option<(String, String, String)> {
+    let e = events.iter().find(|e| !e.all_day && e.end > now)?;
+    let at = e.start.format("%H:%M");
+    let mins = (e.start - now).num_minutes();
+    let when = if e.start <= now {
+        format!("Now · until {}", e.end.format("%H:%M"))
+    } else if e.start.date_naive() == now.date_naive() {
+        if mins < 60 {
+            format!("In {} min · {at}", mins.max(1))
+        } else {
+            format!("Today · {at}")
+        }
+    } else if e.start.date_naive() == now.date_naive() + Span::days(1) {
+        format!("Tomorrow · {at}")
+    } else {
+        format!("{} · {at}", e.start.format("%A"))
+    };
+    Some((e.title.clone(), when, e.location.clone()))
+}
+
 /// webcal:// is just https.
 pub fn http_url(u: &str) -> String {
     match u.strip_prefix("webcal://") {
@@ -344,7 +397,9 @@ impl CalendarModule {
             .name("calendar".into())
             .spawn(move || {
                 let today = Local::now().date_naive();
-                let (from, to) = (day_start(today), day_start(today + Span::days(2)));
+                // The whole week (for the week strip) plus tomorrow when today is Sunday.
+                let monday = today - Span::days(today.weekday().num_days_from_monday() as i64);
+                let (from, to) = (day_start(monday), day_start(monday + Span::days(8)));
                 let mut events = vec![];
                 let mut errors = vec![];
                 for u in &urls {
@@ -390,6 +445,16 @@ impl CalendarModule {
 
     fn sync(&self) {
         let now = Local::now();
+        let week_days: Vec<CalDay> = week(&self.events.borrow(), now.date_naive())
+            .into_iter()
+            .map(|d| CalDay {
+                label: d.label.into(),
+                day: d.day as i32,
+                today: d.today,
+                dots: d.dots as i32,
+            })
+            .collect();
+        let next = next_event(&self.events.borrow(), now);
         let today = self.rows(now.date_naive(), now);
         let tomorrow = self.rows(now.date_naive() + Span::days(1), now);
         let configured = !self.urls.borrow().is_empty();
@@ -403,6 +468,13 @@ impl CalendarModule {
             g.set_configured(configured);
             g.set_loading(loading);
             g.set_error(errors.as_str().into());
+            g.set_week(Rc::new(VecModel::from(week_days.clone())).into());
+            g.set_has_next(next.is_some());
+            if let Some(n) = &next {
+                g.set_next_title(n.0.as_str().into());
+                g.set_next_when(n.1.as_str().into());
+                g.set_next_location(n.2.as_str().into());
+            }
             true
         });
         (self.ctx.peek_changed)();
@@ -572,6 +644,28 @@ END:VCALENDAR\r\n";
         );
         let p = parse_prop("DTSTART;TZID=W. Europe Standard Time:20260702T090000").unwrap();
         assert!(parse_time(&p).is_some(), "unknown TZID falls back to local");
+    }
+
+    #[test]
+    fn week_strip_and_next_event() {
+        let ev = parse_ics(ICS, at("2026-10-26 00:00"), at("2026-11-10 00:00"));
+        let w = week(&ev, NaiveDate::from_ymd_opt(2026, 11, 2).unwrap());
+        assert_eq!(w[0].label, "MON");
+        assert_eq!(
+            (w[0].day, w[0].today, w[0].dots),
+            (2, true, 3),
+            "holiday, standup, moved weekly"
+        );
+        assert_eq!(w[1].dots, 0);
+        let n = next_event(&ev, at("2026-11-02 08:51")).unwrap();
+        assert_eq!(
+            (n.0.as_str(), n.1.as_str()),
+            ("Standup", "In 9 min · 09:00")
+        );
+        let n = next_event(&ev, at("2026-11-02 09:10")).unwrap();
+        assert_eq!(n.1, "Now · until 09:30");
+        let n = next_event(&ev, at("2026-11-02 18:00")).unwrap();
+        assert_eq!(n.1, "Monday · 14:00", "next Monday's weekly");
     }
 
     #[test]
