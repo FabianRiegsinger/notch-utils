@@ -1,5 +1,6 @@
 mod config;
 mod notch;
+mod platform;
 mod state;
 
 use config::Config;

@@ -12,6 +12,7 @@ use std::time::Duration;
 
 /// Matches the `animate width, height` duration in app.slint, plus a small margin.
 const SHRINK_AFTER: Duration = Duration::from_millis(270);
+/// Collapsed size on screens without a hardware notch.
 const PILL: (f32, f32) = (160.0, 24.0);
 
 pub struct Notch {
@@ -64,12 +65,24 @@ impl Notch {
             EventResult::Propagate
         });
 
+        // macOS sets its own (higher) window level in platform::setup_window.
+        notch.ui.set_on_top(!cfg!(target_os = "macos"));
         notch.ui.show()?;
-        // The winit window exists only once the event loop runs.
         let weak = Rc::downgrade(&notch);
-        slint::Timer::single_shot(Duration::ZERO, move || {
-            with(&weak, |n| n.apply(State::Collapsed, State::Collapsed))
-        });
+        let ui = notch.ui.clone_strong();
+        slint::spawn_local(async move {
+            match ui.window().winit_window().await {
+                Ok(win) => with(&weak, |n| {
+                    crate::platform::setup_window(&win);
+                    {
+                        let s = n.state.get();
+                        n.apply(s, s)
+                    }
+                }),
+                Err(e) => log::error!("notch window was not created: {e}"),
+            }
+        })
+        .map_err(|e| slint::PlatformError::Other(e.to_string()))?;
         Ok(notch)
     }
 
@@ -88,13 +101,20 @@ impl Notch {
         let me = self.me.clone();
         self.leave_timer
             .start(slint::TimerMode::SingleShot, delay, move || {
-                with(&me, |n| n.handle(Event::LeaveTimeout))
+                with(&me, |n| {
+                    let inside =
+                        n.ui.window()
+                            .with_winit_window(crate::platform::cursor_inside);
+                    if inside.flatten() != Some(true) {
+                        n.handle(Event::LeaveTimeout)
+                    }
+                })
             });
     }
 
     fn size_for(&self, s: State) -> (f32, f32) {
         let cfg = self.cfg.borrow();
-        let collapsed = PILL;
+        let collapsed = crate::platform::notch_size().unwrap_or(PILL);
         match s {
             State::Collapsed => collapsed,
             State::Peek => (360.0, (collapsed.1 + 12.0).max(48.0)),
@@ -135,17 +155,12 @@ impl Notch {
     }
 }
 
-/// Size the window to `w`x`h` logical px and center it at the top of its monitor.
+/// Size the window to `w`x`h` logical px and center it at the top of the screen.
 fn place(ui: &NotchWindow, w: f32, h: f32) {
-    let window = ui.window();
-    window.set_size(slint::LogicalSize::new(w, h));
-    let monitor =
-        window.with_winit_window(|win| win.primary_monitor().or_else(|| win.current_monitor()));
-    if let Some(Some(m)) = monitor {
-        let scale = m.scale_factor() as f32;
-        let x = m.position().x + ((m.size().width as f32 - w * scale) / 2.0) as i32;
-        window.set_position(slint::PhysicalPosition::new(x, m.position().y));
-    }
+    // Tell Slint first: it resizes the OS window back to its own idea of the size otherwise.
+    ui.window().set_size(slint::LogicalSize::new(w, h));
+    ui.window()
+        .with_winit_window(|win| crate::platform::place_top_center(win, w, h));
 }
 
 fn with(weak: &Weak<Notch>, f: impl FnOnce(&Notch)) {

@@ -3,9 +3,10 @@ export enum NotchState { collapsed, peek, expanded }
 export component NotchWindow inherits Window {
     title: "notch-utils";
     no-frame: true;
-    always-on-top: true;
+    always-on-top: root.on-top;
     background: transparent;
 
+    in property <bool> on-top: true;
     in property <NotchState> state: NotchState.collapsed;
     // Shape size animates; the window itself is resized from Rust (grow first, shrink after).
     in property <length> shape-width: 160px;
