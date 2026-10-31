@@ -1,4 +1,5 @@
 mod app;
+mod claude;
 mod config;
 mod hotkey;
 mod ipc;
@@ -22,6 +23,10 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // Claude Code status line bridge: forward and exit, never start the GUI.
+    if args.first().is_some_and(|a| a == claude::FLAG) {
+        std::process::exit(claude::run_bridge(&args[1..]));
+    }
     if args.first().is_some_and(|a| a == "-h" || a == "--help") {
         println!("{USAGE}");
         return Ok(());

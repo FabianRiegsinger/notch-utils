@@ -1,6 +1,7 @@
 //! Compiled-in modules. Adding one: a Rust type implementing `Module`, a `.slint` view
 //! (plus one line in `ModuleView` in app.slint), and one line in `all()`.
 
+mod ai;
 mod calc;
 mod clipboard;
 mod hud;
@@ -55,6 +56,8 @@ pub trait Module {
     }
     /// Config loaded or changed.
     fn config_changed(&self, _cfg: &Config) {}
+    /// Data pushed from outside (IPC), e.g. topic "usage".
+    fn receive(&self, _topic: &str, _payload: &str) {}
     /// A file was dropped on the notch. Return true to take it.
     fn drop_file(&self, _path: &std::path::Path) -> bool {
         false
@@ -72,6 +75,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         stats::Stats::new(ctx.clone()),
         clipboard::ClipboardModule::new(ctx.clone()),
         shelf::Shelf::new(ctx.clone()),
-        hud::HudModule::new(ctx),
+        hud::HudModule::new(ctx.clone()),
+        ai::AiUsage::new(ctx),
     ]
 }

@@ -11,7 +11,7 @@ No undocumented endpoints, no credentials read.
 - Bridge: `notch-utils --claude-statusline [-- ORIGINAL COMMAND...]`. Reads the JSON on stdin, sends the
   `rate_limits` part to the running app over IPC, then runs the user's original status line command
   (if any) with the same stdin and prints its output, so an existing status line keeps working.
-- Install: a Settings button "Connect Claude Code" edits `~/.claude/settings.json` `statusLine` to call the
+- Install: a "Connect Claude Code" button in the AI usage view edits `~/.claude/settings.json` `statusLine` to call the
   bridge (wrapping any existing command). A timestamped backup is written first. "Disconnect" restores
   the original command. Never done without that click.
 - View: two bars (5-hour session, weekly) with % used and "resets in 2 h 10 min". Peek item when the

@@ -137,6 +137,11 @@ impl App {
                     n.select_tab("shelf");
                 }
             }
+            Command::Usage(json) => {
+                for m in &self.modules {
+                    m.receive("usage", &json);
+                }
+            }
             Command::Ping => {}
         }
     }

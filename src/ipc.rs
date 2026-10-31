@@ -17,6 +17,8 @@ pub enum Command {
     Settings,
     /// Put a file on the shelf (absolute path).
     Shelf(PathBuf),
+    /// AI usage snapshot (single-line JSON) from the Claude Code status line bridge.
+    Usage(String),
     /// Plain launch while already running: nothing to do.
     Ping,
 }
@@ -29,11 +31,15 @@ impl Command {
             "toggle" => Some(Self::Toggle),
             "settings" => Some(Self::Settings),
             "ping" => Some(Self::Ping),
-            _ => s
-                .strip_prefix("shelf ")
-                .map(PathBuf::from)
-                .filter(|p| p.is_absolute())
-                .map(Self::Shelf),
+            _ => {
+                if let Some(json) = s.strip_prefix("usage ") {
+                    return Some(Self::Usage(json.to_string()));
+                }
+                s.strip_prefix("shelf ")
+                    .map(PathBuf::from)
+                    .filter(|p| p.is_absolute())
+                    .map(Self::Shelf)
+            }
         }
     }
 
@@ -43,6 +49,8 @@ impl Command {
             Self::Settings => "settings".into(),
             Self::Ping => "ping".into(),
             Self::Shelf(p) => format!("shelf {}", p.display()),
+            // serde_json never emits raw newlines, so this stays one line.
+            Self::Usage(json) => format!("usage {json}"),
         }
     }
 }
@@ -135,6 +143,8 @@ mod tests {
         );
         let c = Command::Shelf(std::path::absolute("x y.txt").unwrap());
         assert_eq!(Command::parse(&c.line()), Some(c));
+        let u = Command::Usage(r#"{"five_hour":null}"#.into());
+        assert_eq!(Command::parse(&u.line()), Some(u));
         for c in [Command::Toggle, Command::Settings, Command::Ping] {
             assert_eq!(Command::parse(&c.line()), Some(c));
         }
