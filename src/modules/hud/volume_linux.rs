@@ -49,10 +49,9 @@ pub fn watch(on_change: impl Fn(f32, bool) + Send + Sync + 'static) -> Option<Wa
                 }
                 let now = query();
                 if now.is_some() && now != last {
-                    if let Some((v, m)) = now {
-                        if last.is_some() {
-                            on_change(v, m);
-                        }
+                    // No HUD for the very first reading.
+                    if let (Some((v, m)), Some(_)) = (now, last) {
+                        on_change(v, m);
                     }
                     last = now;
                 }

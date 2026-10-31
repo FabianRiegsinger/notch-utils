@@ -148,6 +148,7 @@ mod tests {
         assert!(from_args(&["--bogus".into()]).is_err());
         let v = from_args(&["--shelf".into(), "a".into(), "/b".into()]).unwrap();
         assert_eq!(v.len(), 2);
-        assert!(matches!(&v[1], Command::Shelf(p) if p == std::path::Path::new("/b")));
+        let b = std::path::absolute("/b").unwrap(); // "C:\\b" on Windows
+        assert!(matches!(&v[1], Command::Shelf(p) if *p == b));
     }
 }
