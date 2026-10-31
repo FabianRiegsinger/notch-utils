@@ -1,0 +1,92 @@
+import { Palette } from "../components.slint";
+
+export struct TermRun {
+    col: int,
+    text: string,
+    fg: color,
+    bg: color,
+    has-bg: bool,
+    bold: bool,
+}
+
+export struct TermLine {
+    runs: [TermRun],
+}
+
+export global TermState {
+    in property <[TermLine]> lines;
+    in property <int> cursor-col;
+    in property <int> cursor-row;
+    in property <bool> cursor-visible;
+    in property <bool> exited;
+    in property <string> font-family: "monospace";
+    // view width/height and cell width/height, in logical px
+    callback resized(float, float, float, float);
+    // lines to scroll; positive = back into history
+    callback scroll(int);
+}
+
+export component TermView inherits Rectangle {
+    clip: true;
+    property <length> cw: measure.preferred-width / 10;
+    property <length> ch: measure.preferred-height;
+
+    function report() {
+        TermState.resized(root.width / 1px, root.height / 1px, root.cw / 1px, root.ch / 1px);
+    }
+    init => { root.report(); }
+    changed width => { root.report(); }
+    changed height => { root.report(); }
+
+    measure := Text {
+        visible: false;
+        text: "MMMMMMMMMM";
+        font-family: TermState.font-family;
+        font-size: 12px;
+    }
+
+    TouchArea {
+        scroll-event(e) => {
+            TermState.scroll(Math.round(e.delta-y / root.ch));
+            return accept;
+        }
+    }
+
+    for line[r] in TermState.lines: Rectangle {
+        x: 0;
+        y: r * root.ch;
+        width: root.width;
+        height: root.ch;
+        for run in line.runs: Rectangle {
+            x: run.col * root.cw;
+            width: run.text.character-count * root.cw;
+            height: root.ch;
+            background: run.has-bg ? run.bg : transparent;
+            Text {
+                x: 0;
+                text: run.text;
+                color: run.fg;
+                font-family: TermState.font-family;
+                font-size: 12px;
+                font-weight: run.bold ? 700 : 400;
+            }
+        }
+    }
+
+    if TermState.cursor-visible: Rectangle {
+        x: TermState.cursor-col * root.cw;
+        y: TermState.cursor-row * root.ch;
+        width: root.cw;
+        height: root.ch;
+        background: Palette.fg.with-alpha(0.55);
+    }
+
+    if TermState.exited: Rectangle {
+        background: #000000cc;
+        Text {
+            text: "Shell exited. Press Enter to start a new one.";
+            color: Palette.fg;
+            font-size: 12px;
+        }
+    }
+}

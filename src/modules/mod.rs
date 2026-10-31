@@ -8,6 +8,7 @@ mod clipboard;
 mod hud;
 mod shelf;
 mod stats;
+mod terminal;
 mod timer;
 
 use crate::NotchWindow;
@@ -25,6 +26,25 @@ pub struct Ctx {
     pub collapse: Rc<dyn Fn()>,
     /// Flash a short HUD in the peek area (volume, battery).
     pub hud: Rc<dyn Fn(Hud)>,
+}
+
+/// A key press: either typed text ("a", "+", "ü") or a named key ("Enter", "ArrowUp", "F5").
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct KeyInput {
+    pub key: String,
+    pub named: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    /// Cmd on macOS, Win key elsewhere.
+    pub logo: bool,
+}
+
+impl KeyInput {
+    /// The key for simple consumers: plain text or a named key, without Ctrl/Alt/Cmd.
+    pub fn plain(&self) -> Option<&str> {
+        (!self.ctrl && !self.alt && !self.logo).then_some(self.key.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,9 +70,8 @@ pub trait Module {
     fn peek(&self) -> Option<String> {
         None
     }
-    /// A key typed while the module is visible ("1", "+", "Enter", "Backspace", ...).
-    /// Return true to consume it.
-    fn key(&self, _key: &str) -> bool {
+    /// A key pressed while the module is visible. Return true to consume it.
+    fn key(&self, _key: &KeyInput) -> bool {
         false
     }
     /// Config loaded or changed.
@@ -78,6 +97,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         shelf::Shelf::new(ctx.clone()),
         hud::HudModule::new(ctx.clone()),
         ai::AiUsage::new(ctx.clone()),
-        calendar::CalendarModule::new(ctx),
+        calendar::CalendarModule::new(ctx.clone()),
+        terminal::Terminal::new(ctx),
     ]
 }

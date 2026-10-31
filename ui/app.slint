@@ -7,8 +7,9 @@ import { ClipboardView, ClipState, ClipEntry } from "modules/clipboard.slint";
 import { ShelfView, ShelfState, ShelfEntry } from "modules/shelf.slint";
 import { AiView, AiState } from "modules/ai.slint";
 import { CalendarView, CalState, CalEvent } from "modules/calendar.slint";
+import { TermView, TermState, TermLine, TermRun } from "modules/terminal.slint";
 
-export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent }
+export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun }
 
 export enum NotchState { collapsed, peek, expanded }
 
@@ -27,6 +28,7 @@ component ModuleView {
     if root.id == "shelf": ShelfView { }
     if root.id == "ai": AiView { }
     if root.id == "calendar": CalendarView { }
+    if root.id == "terminal": TermView { }
 }
 
 export component NotchWindow inherits Window {

@@ -2,6 +2,7 @@
 //! resulting state (window geometry + Slint properties).
 
 use crate::config::{Config, LayoutMode, Theme};
+use crate::modules::KeyInput;
 use crate::state::{self, Event, State};
 use crate::{ModuleTab, NotchState, NotchWindow, Palette};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
@@ -29,7 +30,9 @@ pub struct Notch {
     /// Called after every state or tab change, so the app can update module visibility.
     on_change: Rc<dyn Fn()>,
     /// Offered every key press while expanded; true = a module consumed it.
-    on_key: Rc<dyn Fn(&str) -> bool>,
+    on_key: Rc<dyn Fn(&KeyInput) -> bool>,
+    /// Current modifier keys (winit reports them separately from key presses).
+    modifiers: Cell<winit::keyboard::ModifiersState>,
     /// A file was dropped on the window.
     on_file: Rc<dyn Fn(&std::path::Path)>,
 }
@@ -38,7 +41,7 @@ impl Notch {
     pub fn new(
         cfg: Rc<RefCell<Config>>,
         on_change: Rc<dyn Fn()>,
-        on_key: Rc<dyn Fn(&str) -> bool>,
+        on_key: Rc<dyn Fn(&KeyInput) -> bool>,
         on_file: Rc<dyn Fn(&std::path::Path)>,
     ) -> Result<Rc<Self>, slint::PlatformError> {
         let ui = NotchWindow::new()?;
@@ -53,6 +56,7 @@ impl Notch {
             shrink_timer: slint::Timer::default(),
             on_change,
             on_key,
+            modifiers: Cell::new(Default::default()),
             on_file,
         });
 
@@ -70,7 +74,7 @@ impl Notch {
         let weak = Rc::downgrade(&notch);
         notch.ui.window().on_winit_window_event(move |_, ev| {
             use winit::event::{ElementState, WindowEvent};
-            use winit::keyboard::{Key, NamedKey};
+            use winit::keyboard::Key;
             let mut result = EventResult::Propagate;
             with(&weak, |n| match ev {
                 WindowEvent::CursorEntered { .. } => {
@@ -81,6 +85,7 @@ impl Notch {
                 // AppKit also sends a leave when the window grows while the cursor is
                 // elsewhere: only a leave after an enter counts.
                 WindowEvent::CursorLeft { .. } if n.hovered.replace(false) => n.start_leave_timer(),
+                WindowEvent::ModifiersChanged(m) => n.modifiers.set(m.state()),
                 WindowEvent::HoveredFile(_) => {
                     n.leave_timer.stop();
                     n.handle(Event::FileHover);
@@ -93,20 +98,25 @@ impl Notch {
                 WindowEvent::KeyboardInput { event, .. }
                     if event.state == ElementState::Pressed && n.state.get() == State::Expanded =>
                 {
-                    let key = match &event.logical_key {
-                        Key::Named(NamedKey::Enter) => Some("Enter"),
-                        Key::Named(NamedKey::Backspace) => Some("Backspace"),
-                        Key::Named(NamedKey::Delete) => Some("Delete"),
-                        Key::Named(NamedKey::Escape) => Some("Escape"),
-                        Key::Character(c) => Some(c.as_str()),
-                        _ => None,
+                    let m = n.modifiers.get();
+                    let (key, named) = match &event.logical_key {
+                        // Debug names: "Enter", "ArrowUp", "F5", "Space", ...
+                        Key::Named(k) => (format!("{k:?}"), true),
+                        Key::Character(c) => (c.to_string(), false),
+                        _ => return,
                     };
-                    if let Some(key) = key {
-                        if (n.on_key)(key) {
-                            result = EventResult::PreventDefault;
-                        } else if key == "Escape" {
-                            n.handle(Event::Escape)
-                        }
+                    let input = KeyInput {
+                        key,
+                        named,
+                        ctrl: m.control_key(),
+                        alt: m.alt_key(),
+                        shift: m.shift_key(),
+                        logo: m.super_key(),
+                    };
+                    if (n.on_key)(&input) {
+                        result = EventResult::PreventDefault;
+                    } else if input.named && input.key == "Escape" {
+                        n.handle(Event::Escape)
                     }
                 }
                 _ => {}

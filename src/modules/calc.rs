@@ -301,15 +301,18 @@ impl Module for Calc {
     fn attach(&self, ui: &NotchWindow) {
         let me = self.me.clone();
         ui.global::<CalcState>().on_press(move |key| {
-            if let Some(c) = me.upgrade() {
-                c.key(&key);
+            if let Some(c) = me.upgrade()
+                && c.engine.borrow_mut().press(&key)
+            {
+                c.sync();
             }
         });
         self.windows.borrow_mut().push(ui.as_weak());
         self.sync();
     }
 
-    fn key(&self, key: &str) -> bool {
+    fn key(&self, key: &super::KeyInput) -> bool {
+        let Some(key) = key.plain() else { return false };
         let handled = self.engine.borrow_mut().press(key);
         if handled {
             self.sync();

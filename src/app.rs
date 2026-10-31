@@ -326,7 +326,7 @@ impl App {
     }
 
     /// Offer a key to the visible modules, in tab order.
-    fn key(&self, key: &str) -> bool {
+    fn key(&self, key: &crate::modules::KeyInput) -> bool {
         let shown = self.shown.borrow().clone();
         self.enabled()
             .iter()
