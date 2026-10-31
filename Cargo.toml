@@ -32,3 +32,8 @@ strip = true
 objc2 = "0.6.5"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
+
+# winit 0.30.13 with one fix: don't abort on incomplete KVO change dictionaries (macOS).
+# See vendor/winit/src/platform_impl/macos/window_delegate.rs ("notch-utils patch").
+[patch.crates-io]
+winit = { path = "vendor/winit" }

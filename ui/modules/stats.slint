@@ -1,0 +1,172 @@
+import { Palette } from "../components.slint";
+
+export struct LabeledValue {
+    label: string,
+    text: string,
+    // 0..1 for a bar; negative = no bar.
+    frac: float,
+}
+
+export global StatsState {
+    in property <bool> detailed;
+    in property <string> cpu-text: "–";
+    in property <string> mem-text: "–";
+    in property <string> down-text: "–";
+    in property <string> up-text: "–";
+    // Last 60 samples, each scaled to 0..1, oldest first.
+    in property <[float]> cpu-hist;
+    in property <[float]> mem-hist;
+    in property <[float]> down-hist;
+    in property <[float]> up-hist;
+    in property <[float]> cores;
+    in property <[LabeledValue]> disks;
+    in property <[LabeledValue]> temps;
+    in property <[LabeledValue]> procs;
+    in property <string> battery-text;
+}
+
+// Bar chart of the last 60 samples, right-aligned so the newest is at the right edge.
+component Spark inherits Rectangle {
+    in property <[float]> values;
+    in property <color> bar-color: Palette.accent;
+    property <length> step: self.width / 60;
+    for v[i] in root.values: Rectangle {
+        x: (60 - root.values.length + i) * root.step;
+        width: max(root.step - 1px, 1px);
+        height: max(root.height * clamp(v, 0, 1), 1px);
+        y: root.height - self.height;
+        background: root.bar-color;
+    }
+}
+
+component Card inherits Rectangle {
+    in property <string> title;
+    in property <string> value;
+    in property <string> sub;
+    background: Palette.surface;
+    border-radius: 14px;
+    horizontal-stretch: 1;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 2px;
+        Text { text: root.title; color: Palette.fg-dim; font-size: 11px; }
+        Text { text: root.value; color: Palette.fg; font-size: 20px; font-weight: 500; }
+        if root.sub != "": Text { text: root.sub; color: Palette.fg-dim; font-size: 11px; }
+        Rectangle {
+            vertical-stretch: 1;
+            min-height: 30px;
+            @children
+        }
+    }
+}
+
+component Bar inherits Rectangle {
+    in property <float> frac;
+    height: 6px;
+    border-radius: 3px;
+    background: Palette.surface;
+    Rectangle {
+        x: 0;
+        width: parent.width * clamp(root.frac, 0, 1);
+        border-radius: 3px;
+        background: root.frac > 0.85 ? #ff453a : Palette.accent;
+    }
+}
+
+component Section inherits VerticalLayout {
+    in property <string> title;
+    spacing: 4px;
+    Text { text: root.title; color: Palette.fg-dim; font-size: 11px; }
+    @children
+}
+
+component Rows inherits VerticalLayout {
+    in property <[LabeledValue]> rows;
+    spacing: 3px;
+    for r in root.rows: VerticalLayout {
+        spacing: 2px;
+        HorizontalLayout {
+            Text { text: r.label; color: Palette.fg; font-size: 11px; overflow: elide; horizontal-stretch: 1; }
+            Text { text: r.text; color: Palette.fg-dim; font-size: 11px; }
+        }
+        if r.frac >= 0: Bar { frac: r.frac; }
+    }
+}
+
+export component StatsView inherits VerticalLayout {
+    if !StatsState.detailed: HorizontalLayout {
+        spacing: 10px;
+        Card {
+            title: "CPU";
+            value: StatsState.cpu-text;
+            Spark { values: StatsState.cpu-hist; }
+        }
+        Card {
+            title: "Memory";
+            value: StatsState.mem-text;
+            Spark { values: StatsState.mem-hist; }
+        }
+        Card {
+            title: "Network";
+            value: "↓ " + StatsState.down-text;
+            sub: "↑ " + StatsState.up-text;
+            VerticalLayout {
+                spacing: 3px;
+                Spark { values: StatsState.down-hist; }
+                Spark { values: StatsState.up-hist; bar-color: Palette.fg-dim; }
+            }
+        }
+    }
+
+    if StatsState.detailed: Flickable {
+        content-height: detail.preferred-height;
+        detail := HorizontalLayout {
+            spacing: 16px;
+            VerticalLayout {
+                spacing: 10px;
+                horizontal-stretch: 1;
+                Section {
+                    title: "CPU " + StatsState.cpu-text + "   ·   Memory " + StatsState.mem-text;
+                    HorizontalLayout {
+                        spacing: 2px;
+                        height: 36px;
+                        for c in StatsState.cores: Rectangle {
+                            background: Palette.surface;
+                            border-radius: 2px;
+                            Rectangle {
+                                y: parent.height * (1 - clamp(c, 0, 1));
+                                height: parent.height * clamp(c, 0, 1);
+                                border-radius: 2px;
+                                background: Palette.accent;
+                            }
+                        }
+                    }
+                }
+                Section {
+                    title: "Network   ↓ " + StatsState.down-text + "   ↑ " + StatsState.up-text;
+                }
+                Section {
+                    title: "Disks";
+                    Rows { rows: StatsState.disks; }
+                }
+                if StatsState.battery-text != "": Section {
+                    title: "Battery";
+                    Text { text: StatsState.battery-text; color: Palette.fg; font-size: 11px; }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
+                horizontal-stretch: 1;
+                Section {
+                    title: "Top processes";
+                    Rows { rows: StatsState.procs; }
+                }
+                if StatsState.temps.length > 0: Section {
+                    title: "Temperatures";
+                    Rows { rows: StatsState.temps; }
+                }
+            }
+        }
+    }
+}

@@ -2,6 +2,7 @@
 //! (plus one line in `ModuleView` in app.slint), and one line in `all()`.
 
 mod calc;
+mod stats;
 mod timer;
 
 use crate::NotchWindow;
@@ -40,5 +41,9 @@ pub trait Module {
 }
 
 pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
-    vec![timer::Timer::new(ctx.clone()), calc::Calc::new(ctx)]
+    vec![
+        timer::Timer::new(ctx.clone()),
+        calc::Calc::new(ctx.clone()),
+        stats::Stats::new(ctx),
+    ]
 }
