@@ -2,6 +2,7 @@
 //! (plus one line in `ModuleView` in app.slint), and one line in `all()`.
 
 mod calc;
+mod clipboard;
 mod stats;
 mod timer;
 
@@ -16,6 +17,8 @@ pub struct Ctx {
     pub peek_changed: Rc<dyn Fn()>,
     /// The module wants attention: collapsed notches open to peek.
     pub alert: Rc<dyn Fn()>,
+    /// Close the notch (e.g. after copying, so the user can paste).
+    pub collapse: Rc<dyn Fn()>,
 }
 
 pub trait Module {
@@ -44,6 +47,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
     vec![
         timer::Timer::new(ctx.clone()),
         calc::Calc::new(ctx.clone()),
-        stats::Stats::new(ctx),
+        stats::Stats::new(ctx.clone()),
+        clipboard::ClipboardModule::new(ctx),
     ]
 }

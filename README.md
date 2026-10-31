@@ -42,11 +42,18 @@ target = "main"                 # main | all | follow_mouse
 theme = "black"                 # black | system | custom
 accent = "#0A84FF"              # used with theme = "custom"
 expanded_width = 640
-expanded_height = 280
+expanded_height = 300
 
 [layout]
 mode = "tabs"                   # tabs | grid
-modules = ["timer"]             # order shown; leave one out to disable it
+modules = ["timer", "calc", "stats", "clipboard"]  # order shown; leave one out to disable it
+
+[modules.stats]
+view = "graphs"                 # graphs | detailed
+
+[modules.clipboard]
+max_entries = 50
+persist = false                 # save text history to disk (never images)
 ```
 
 Missing keys use the defaults. If the file has an error, the app keeps the last good
@@ -56,9 +63,16 @@ settings and shows the error in the settings window.
 
 - **Timer**: countdown and stopwatch; shows in the peek while running, pops the notch
   open when done.
+- **Calculator**: macOS-style basic calculator (operator precedence, repeated `=`, `%`).
+  Type on the keyboard while the notch is open.
+- **Stats**: CPU, memory and network with 60-second graphs; a detailed view adds per-core
+  CPU, disks, battery, temperatures and top processes. Measures only while visible.
+- **Clipboard**: the last 50 copies (text and images), searchable, with pins. Click an
+  item to copy it again. Copies marked secret by password managers are never recorded.
+  History stays in memory unless you turn on saving (text only, never images).
 
-Planned: calculator, system stats, clipboard history, volume/brightness/battery HUD,
-file shelf, terminal, calendar, AI subscription usage.
+Planned: volume/brightness/battery HUD, file shelf, terminal, calendar, AI subscription
+usage.
 
 ## Platform notes
 
@@ -67,6 +81,8 @@ file shelf, terminal, calendar, AI subscription usage.
   shortcut in your desktop settings.
 - **Follow mouse** display mode currently works on macOS only.
 - Builds are unsigned. On macOS, right-click → Open the first time.
+- `vendor/winit` is winit 0.30.13 with one fix for a macOS abort during rapid window
+  resizes (marked "notch-utils patch").
 
 ## Build
 

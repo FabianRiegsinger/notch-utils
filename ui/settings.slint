@@ -36,6 +36,9 @@ export component SettingsWindow inherits Window {
     in-out property <int> expanded-height;
     in-out property <int> layout-mode;
     in-out property <[ModuleEntry]> modules;
+    in-out property <int> stats-view;
+    in-out property <int> clip-max;
+    in-out property <bool> clip-persist;
     in property <string> error;
     in property <string> config-path;
 
@@ -188,6 +191,46 @@ export component SettingsWindow inherits Window {
                             enabled: i < root.modules.length - 1;
                             clicked => { root.module-moved(i, i + 1); }
                         }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Stats";
+                Row {
+                    label: "View";
+                    ComboBox {
+                        model: ["Compact with graphs", "Detailed"];
+                        current-index <=> root.stats-view;
+                        selected => { root.changed(); }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: "Clipboard history";
+                VerticalLayout {
+                    spacing: 8px;
+                    Row {
+                        label: "Keep last";
+                        SpinBox {
+                            minimum: 5;
+                            maximum: 500;
+                            step-size: 5;
+                            value <=> root.clip-max;
+                            edited => { root.changed(); }
+                        }
+                    }
+                    CheckBox {
+                        text: "Save text history to disk";
+                        checked <=> root.clip-persist;
+                        toggled => { root.changed(); }
+                    }
+                    Text {
+                        text: "Off: history is kept in memory only and is gone after quitting. Images are never saved. Copies that password managers mark as secret are never recorded.";
+                        wrap: word-wrap;
+                        font-size: 11px;
+                        opacity: 0.7;
                     }
                 }
             }

@@ -47,7 +47,7 @@ impl App {
         error: String,
     ) -> Result<Rc<Self>, slint::PlatformError> {
         let app = Rc::new_cyclic(|me: &Weak<App>| {
-            let (a, b) = (me.clone(), me.clone());
+            let (a, b, c) = (me.clone(), me.clone(), me.clone());
             let ctx = modules::Ctx {
                 peek_changed: Rc::new(move || {
                     if let Some(app) = a.upgrade() {
@@ -57,6 +57,13 @@ impl App {
                 alert: Rc::new(move || {
                     if let Some(app) = b.upgrade() {
                         app.alert()
+                    }
+                }),
+                collapse: Rc::new(move || {
+                    if let Some(app) = c.upgrade() {
+                        for n in app.notches.borrow().iter() {
+                            n.handle(Event::Escape)
+                        }
                     }
                 }),
             };

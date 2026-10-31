@@ -1,6 +1,6 @@
 //! Maps `Config` to and from the settings window. Enum ↔ ComboBox index tables live here.
 
-use crate::config::{Config, DisplayTarget, LayoutMode, OpenMode, Theme};
+use crate::config::{Config, DisplayTarget, LayoutMode, OpenMode, StatsView, Theme};
 use crate::modules::Module;
 use crate::{ModuleEntry, SettingsWindow};
 use slint::{Model, VecModel};
@@ -18,6 +18,7 @@ const DISPLAY: [DisplayTarget; 3] = [
 ];
 const THEME: [Theme; 3] = [Theme::Black, Theme::System, Theme::Custom];
 const LAYOUT: [LayoutMode; 2] = [LayoutMode::Tabs, LayoutMode::Grid];
+const STATS_VIEW: [StatsView; 2] = [StatsView::Graphs, StatsView::Detailed];
 
 fn index<T: PartialEq>(table: &[T], v: &T) -> i32 {
     table.iter().position(|x| x == v).unwrap_or(0) as i32
@@ -61,6 +62,9 @@ pub fn to_ui(ui: &SettingsWindow, cfg: &Config, all: &[Rc<dyn Module>]) {
     ui.set_expanded_height(cfg.appearance.expanded_height as i32);
     ui.set_layout_mode(index(&LAYOUT, &cfg.layout.mode));
     ui.set_modules(Rc::new(VecModel::from(module_entries(cfg, all))).into());
+    ui.set_stats_view(index(&STATS_VIEW, &cfg.modules.stats.view));
+    ui.set_clip_max(cfg.modules.clipboard.max_entries.min(500) as i32);
+    ui.set_clip_persist(cfg.modules.clipboard.persist);
 }
 
 /// Start from `base` so keys the window doesn't show are kept.
@@ -82,6 +86,9 @@ pub fn from_ui(ui: &SettingsWindow, base: &Config) -> Config {
         .filter(|m| m.enabled)
         .map(|m| m.id.to_string())
         .collect();
+    c.modules.stats.view = pick(&STATS_VIEW, ui.get_stats_view());
+    c.modules.clipboard.max_entries = ui.get_clip_max().max(1) as usize;
+    c.modules.clipboard.persist = ui.get_clip_persist();
     c
 }
 
