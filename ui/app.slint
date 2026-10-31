@@ -1,0 +1,72 @@
+export enum NotchState { collapsed, peek, expanded }
+
+export component NotchWindow inherits Window {
+    title: "notch-utils";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in property <NotchState> state: NotchState.collapsed;
+    // Shape size animates; the window itself is resized from Rust (grow first, shrink after).
+    in property <length> shape-width: 160px;
+    in property <length> shape-height: 24px;
+    in property <color> shape-color: black;
+    in property <color> accent: #0A84FF;
+    in property <string> peek-text;
+
+    callback clicked();
+
+    shape := Rectangle {
+        x: (root.width - self.width) / 2;
+        y: 0;
+        width: root.shape-width;
+        height: root.shape-height;
+        background: root.shape-color;
+        border-bottom-left-radius: root.state == NotchState.expanded ? 24px : min(self.height / 2, 12px);
+        border-bottom-right-radius: self.border-bottom-left-radius;
+        clip: true;
+
+        animate width, height { duration: 260ms; easing: ease-out-back; }
+        animate border-bottom-left-radius { duration: 200ms; }
+
+        TouchArea {
+            clicked => { root.clicked(); }
+        }
+
+        if root.state == NotchState.peek: Text {
+            text: root.peek-text;
+            color: white;
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        if root.state == NotchState.expanded: VerticalLayout {
+            padding: 16px;
+            padding-top: 36px;
+            Text {
+                text: "notch-utils";
+                color: white;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            Rectangle { }
+        }
+    }
+}
+
+export component Tray inherits SystemTrayIcon {
+    icon: @image-url("../assets/tray.svg");
+    tooltip: "notch-utils";
+
+    callback toggle();
+    callback open-settings();
+    callback quit();
+
+    Menu {
+        MenuItem { title: "Toggle notch"; activated => { root.toggle(); } }
+        MenuItem { title: "Settings…"; activated => { root.open-settings(); } }
+        MenuSeparator { }
+        MenuItem { title: "Quit notch-utils"; activated => { root.quit(); } }
+    }
+}
