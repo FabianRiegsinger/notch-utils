@@ -26,12 +26,15 @@ pub struct Notch {
     shrink_timer: slint::Timer,
     /// Called after every state or tab change, so the app can update module visibility.
     on_change: Rc<dyn Fn()>,
+    /// Offered every key press while expanded; true = a module consumed it.
+    on_key: Rc<dyn Fn(&str) -> bool>,
 }
 
 impl Notch {
     pub fn new(
         cfg: Rc<RefCell<Config>>,
         on_change: Rc<dyn Fn()>,
+        on_key: Rc<dyn Fn(&str) -> bool>,
     ) -> Result<Rc<Self>, slint::PlatformError> {
         let ui = NotchWindow::new()?;
         let notch = Rc::new_cyclic(|me| Self {
@@ -43,6 +46,7 @@ impl Notch {
             leave_timer: slint::Timer::default(),
             shrink_timer: slint::Timer::default(),
             on_change,
+            on_key,
         });
 
         let weak = Rc::downgrade(&notch);
@@ -60,6 +64,7 @@ impl Notch {
         notch.ui.window().on_winit_window_event(move |_, ev| {
             use winit::event::{ElementState, WindowEvent};
             use winit::keyboard::{Key, NamedKey};
+            let mut result = EventResult::Propagate;
             with(&weak, |n| match ev {
                 WindowEvent::CursorEntered { .. } => {
                     n.leave_timer.stop();
@@ -69,14 +74,27 @@ impl Notch {
                 WindowEvent::Focused(false) => n.handle(Event::FocusLost),
                 WindowEvent::ThemeChanged(_) => n.apply_appearance(),
                 WindowEvent::KeyboardInput { event, .. }
-                    if event.state == ElementState::Pressed
-                        && event.logical_key == Key::Named(NamedKey::Escape) =>
+                    if event.state == ElementState::Pressed && n.state.get() == State::Expanded =>
                 {
-                    n.handle(Event::Escape)
+                    let key = match &event.logical_key {
+                        Key::Named(NamedKey::Enter) => Some("Enter"),
+                        Key::Named(NamedKey::Backspace) => Some("Backspace"),
+                        Key::Named(NamedKey::Delete) => Some("Delete"),
+                        Key::Named(NamedKey::Escape) => Some("Escape"),
+                        Key::Character(c) => Some(c.as_str()),
+                        _ => None,
+                    };
+                    if let Some(key) = key {
+                        if (n.on_key)(key) {
+                            result = EventResult::PreventDefault;
+                        } else if key == "Escape" {
+                            n.handle(Event::Escape)
+                        }
+                    }
                 }
                 _ => {}
             });
-            EventResult::Propagate
+            result
         });
 
         // macOS sets its own (higher) window level in platform::setup_window.

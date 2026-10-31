@@ -120,7 +120,7 @@ impl App {
     }
 
     fn add_notch(&self, screen: Option<usize>) -> Result<(), slint::PlatformError> {
-        let me = self.me.clone();
+        let (me, me2) = (self.me.clone(), self.me.clone());
         let notch = Notch::new(
             self.cfg.clone(),
             Rc::new(move || {
@@ -128,6 +128,7 @@ impl App {
                     app.update_visibility()
                 }
             }),
+            Rc::new(move |key| me2.upgrade().is_some_and(|app| app.key(key))),
         )?;
         notch.set_screen(screen);
         for m in &self.modules {
@@ -168,6 +169,9 @@ impl App {
         }
         for n in self.notches.borrow().iter() {
             n.apply_config(tabs.clone());
+        }
+        for m in &self.modules {
+            m.config_changed(&self.cfg.borrow());
         }
         let (enabled, spec) = {
             let c = self.cfg.borrow();
@@ -276,6 +280,15 @@ impl App {
         if let Some(n) = target {
             n.handle(Event::Toggle)
         }
+    }
+
+    /// Offer a key to the visible modules, in tab order.
+    fn key(&self, key: &str) -> bool {
+        let shown = self.shown.borrow().clone();
+        self.enabled()
+            .iter()
+            .filter(|m| shown.contains(m.id()))
+            .any(|m| m.key(key))
     }
 
     fn update_visibility(&self) {

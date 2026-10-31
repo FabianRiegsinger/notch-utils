@@ -1,9 +1,11 @@
 //! Compiled-in modules. Adding one: a Rust type implementing `Module`, a `.slint` view
 //! (plus one line in `ModuleView` in app.slint), and one line in `all()`.
 
+mod calc;
 mod timer;
 
 use crate::NotchWindow;
+use crate::config::Config;
 use std::rc::Rc;
 
 /// How a module talks back to the app.
@@ -28,8 +30,15 @@ pub trait Module {
     fn peek(&self) -> Option<String> {
         None
     }
+    /// A key typed while the module is visible ("1", "+", "Enter", "Backspace", ...).
+    /// Return true to consume it.
+    fn key(&self, _key: &str) -> bool {
+        false
+    }
+    /// Config loaded or changed.
+    fn config_changed(&self, _cfg: &Config) {}
 }
 
 pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
-    vec![timer::Timer::new(ctx)]
+    vec![timer::Timer::new(ctx.clone()), calc::Calc::new(ctx)]
 }

@@ -1,8 +1,9 @@
 import { Palette, Pill } from "components.slint";
 import { TimerView, TimerState } from "modules/timer.slint";
 import { SettingsWindow, ModuleEntry } from "settings.slint";
+import { CalcView, CalcState } from "modules/calc.slint";
 
-export { Palette, TimerState, SettingsWindow, ModuleEntry }
+export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState }
 
 export enum NotchState { collapsed, peek, expanded }
 
@@ -15,6 +16,7 @@ export struct ModuleTab {
 component ModuleView {
     in property <string> id;
     if root.id == "timer": TimerView { }
+    if root.id == "calc": CalcView { }
 }
 
 export component NotchWindow inherits Window {

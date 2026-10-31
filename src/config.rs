@@ -10,6 +10,7 @@ pub struct Config {
     pub display: Display,
     pub appearance: Appearance,
     pub layout: Layout,
+    pub modules: Modules,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,7 +72,7 @@ impl Default for Appearance {
             theme: Theme::default(),
             accent: "#0A84FF".into(),
             expanded_width: 640,
-            expanded_height: 280,
+            expanded_height: 300,
         }
     }
 }
@@ -97,7 +98,9 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             mode: LayoutMode::default(),
-            modules: vec!["timer".into()],
+            modules: ["timer", "calc", "stats", "clipboard"]
+                .map(String::from)
+                .to_vec(),
         }
     }
 }
@@ -108,6 +111,45 @@ pub enum LayoutMode {
     #[default]
     Tabs,
     Grid,
+}
+
+/// Per-module settings: `[modules.<id>]`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Modules {
+    pub stats: Stats,
+    pub clipboard: Clipboard,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Stats {
+    pub view: StatsView,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StatsView {
+    #[default]
+    Graphs,
+    Detailed,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Clipboard {
+    pub max_entries: usize,
+    /// Save text entries and pins to disk. Images are never saved.
+    pub persist: bool,
+}
+
+impl Default for Clipboard {
+    fn default() -> Self {
+        Self {
+            max_entries: 50,
+            persist: false,
+        }
+    }
 }
 
 impl Config {
@@ -164,8 +206,20 @@ mod tests {
         assert_eq!(c.behavior.open_mode, OpenMode::ClickOnly);
         assert_eq!(c.behavior.collapse_delay_ms, 300);
         assert_eq!(c.layout.mode, LayoutMode::Grid);
-        assert_eq!(c.layout.modules, vec!["timer"]);
+        assert_eq!(c.layout.modules, ["timer", "calc", "stats", "clipboard"]);
+        assert_eq!(c.modules.clipboard.max_entries, 50);
         assert_eq!(c.display.target, DisplayTarget::Main);
+    }
+
+    #[test]
+    fn module_sections() {
+        let c = Config::parse(
+            "[modules.stats]\nview = \"detailed\"\n[modules.clipboard]\npersist = true",
+        )
+        .unwrap();
+        assert_eq!(c.modules.stats.view, StatsView::Detailed);
+        assert!(c.modules.clipboard.persist);
+        assert_eq!(c.modules.clipboard.max_entries, 50);
     }
 
     #[test]

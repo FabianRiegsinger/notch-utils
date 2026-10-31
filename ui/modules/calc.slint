@@ -1,0 +1,97 @@
+import { Palette } from "../components.slint";
+
+export global CalcState {
+    in property <string> display: "0";
+    in property <string> clear-label: "AC";
+    // Operator to highlight ("+", "−", "×", "÷") until the next number is typed.
+    in property <string> selected-op;
+    callback press(string);
+}
+
+component Key inherits Rectangle {
+    in property <string> label;
+    in property <string> key: root.label;
+    in property <color> base: #333333;
+    in property <color> text-color: white;
+    in property <bool> highlighted;
+    in property <bool> wide;
+
+    height: 30px;
+    width: root.wide ? 30px * 2 + 6px : 30px;
+    border-radius: 15px;
+    background: root.highlighted ? white : (touch.pressed ? root.base.brighter(0.4) : touch.has-hover ? root.base.brighter(0.15) : root.base);
+    animate background { duration: 100ms; }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { CalcState.press(root.key); }
+
+    Text {
+        x: root.wide ? 11px : 0;
+        width: root.wide ? 30px - 11px : parent.width;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        text: root.label;
+        font-size: 15px;
+        color: root.highlighted ? root.base : root.text-color;
+    }
+
+    touch := TouchArea {
+        clicked => { CalcState.press(root.key); }
+    }
+}
+
+component OpKey inherits Key {
+    base: #ff9f0a;
+    highlighted: CalcState.selected-op == self.label;
+}
+
+component FnKey inherits Key {
+    base: #a5a5a5;
+    text-color: black;
+}
+
+// Display left of the keypad: the five key rows alone fill the panel height.
+export component CalcView inherits HorizontalLayout {
+    alignment: center;
+    spacing: 20px;
+
+    Text {
+        width: 220px;
+        text: CalcState.display;
+        color: Palette.fg;
+        font-size: CalcState.display.character-count > 9 ? 26px : 40px;
+        font-weight: 300;
+        horizontal-alignment: right;
+        vertical-alignment: bottom;
+        overflow: elide;
+        accessible-role: text;
+    }
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 6px;
+
+        for row in [
+            ["AC", "±", "%", "÷"],
+            ["7", "8", "9", "×"],
+            ["4", "5", "6", "−"],
+            ["1", "2", "3", "+"],
+        ]: HorizontalLayout {
+            spacing: 6px;
+            if row[0] == "AC": FnKey { label: CalcState.clear-label; }
+            if row[0] != "AC": Key { label: row[0]; }
+            if row[1] == "±": FnKey { label: "±"; }
+            if row[1] != "±": Key { label: row[1]; }
+            if row[2] == "%": FnKey { label: "%"; }
+            if row[2] != "%": Key { label: row[2]; }
+            OpKey { label: row[3]; }
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+            Key { label: "0"; wide: true; }
+            Key { label: "."; }
+            OpKey { label: "="; }
+        }
+    }
+}
