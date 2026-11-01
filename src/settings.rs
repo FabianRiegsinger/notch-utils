@@ -74,6 +74,7 @@ pub const SETS: [(&str, &str, &[&str]); 4] = [
             "calendar",
             "ai",
             "devices",
+            "mirror",
             "awake",
             "hud",
             "hints",

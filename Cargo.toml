@@ -19,6 +19,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 interprocess = "2.4.7"
 jiff = "0.2.38"
 log = "0.4.35"
+nokhwa = { version = "0.10.11", features = ["input-native"] }
 notify = "8"
 rrule = "0.14"
 serde = { version = "1.0.229", features = ["derive"] }

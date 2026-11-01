@@ -11,6 +11,7 @@ mod downloads;
 mod hints;
 mod home;
 mod hud;
+mod mirror;
 mod music;
 mod shelf;
 mod stats;
@@ -117,6 +118,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         shelf::Shelf::new(ctx.clone()),
         downloads::Downloads::new(ctx.clone()),
         devices::Devices::new(ctx.clone()),
+        mirror::Mirror::new(ctx.clone()),
         hud::HudModule::new(ctx.clone()),
         hints::Hints::new(ctx.clone()),
         ai::AiUsage::new(ctx.clone()),

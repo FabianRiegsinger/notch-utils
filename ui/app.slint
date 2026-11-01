@@ -13,8 +13,9 @@ import { MusicView, MusicState } from "modules/music.slint";
 import { AwakeView, AwakeState } from "modules/awake.slint";
 import { DownloadsView, DlState, DlEntry } from "modules/downloads.slint";
 import { DevicesView, DevState, DevEntry } from "modules/devices.slint";
+import { MirrorView, MirrorState } from "modules/mirror.slint";
 
-export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState, DlState, DlEntry, DevState, DevEntry }
+export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState, DlState, DlEntry, DevState, DevEntry, MirrorState }
 
 export enum NotchState { collapsed, peek, expanded }
 
@@ -33,6 +34,7 @@ component ModuleView {
     if root.id == "awake": AwakeView { }
     if root.id == "downloads": DownloadsView { }
     if root.id == "devices": DevicesView { }
+    if root.id == "mirror": MirrorView { }
     if root.id == "timer": TimerView { }
     if root.id == "calc": CalcView { }
     if root.id == "stats": StatsView { }

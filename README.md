@@ -94,6 +94,13 @@ Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modu
 - **Shelf**: drag files onto the notch to park them. Click one to copy it (then paste in
   Finder/Explorer), drag it out (macOS), show it in its folder or open it. Keeps references
   only, in memory. Also: `notch-utils --shelf FILE...`.
+- **Keep Awake**: keep the computer and display awake for 15 min, 1 h or until turned off.
+- **Downloads**: downloads in progress (with speed) and your newest files; open, show or drag out.
+- **Devices**: connected Bluetooth devices with battery (AirPods left/right/case, Magic
+  Trackpad/Keyboard/Mouse). macOS and Linux.
+- **Mirror**: your webcam, only while the tab is open.
+- **Hints beside the notch**: Caps Lock, connection lost/back and Focus on/off flash briefly;
+  microphone/camera in use and offline stay visible. Focus needs Full Disk Access on macOS.
 - **Volume & battery HUD**: volume changes, charger plugged/unplugged, full, 20% and 10%
   flash briefly in the notch. No tab of its own.
 
@@ -123,10 +130,19 @@ Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modu
 - `vendor/winit` is winit 0.30.13 with one fix for a macOS abort during rapid window
   resizes (marked "notch-utils patch").
 
+## Install
+
+- **macOS**: download `notch-utils-macos-arm64` from a CI run, unzip, move `notch-utils.app` to
+  Applications. It's ad-hoc signed, so the first time: right-click → Open.
+- **Windows**: unzip and run `notch-utils.exe`. **Linux**: unpack the tar.gz; a `.desktop` file
+  is included.
+- Turn on **Start at login** in Settings.
+
 ## Build
 
 ```sh
-cargo run --release
+cargo run --release          # run from source
+scripts/bundle-macos.sh      # build target/release/notch-utils.app (+ zip)
 ```
 
 Linux needs `libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libdbus-1-dev`.
