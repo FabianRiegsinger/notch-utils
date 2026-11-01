@@ -12,8 +12,8 @@ use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 /// Matches the `animate width, height` duration in app.slint, plus a small margin.
-/// After the 300 ms body animation in app.slint.
-const SHRINK_AFTER: Duration = Duration::from_millis(320);
+/// After the body animation in app.slint (450 ms for peek).
+const SHRINK_AFTER: Duration = Duration::from_millis(480);
 /// Collapsed size on screens without a hardware notch.
 const PILL: (f32, f32) = (160.0, 24.0);
 /// Concave corners that flow into the menu bar (must match the window's extra width).
@@ -431,10 +431,12 @@ fn parse_hex(s: &str) -> Option<Color> {
 
 /// Size the window to `w`x`h` logical px and center it at the top of the screen.
 fn place(ui: &NotchWindow, screen: Option<usize>, w: f32, h: f32) {
-    // Tell Slint first: it resizes the OS window back to its own idea of the size otherwise.
-    ui.window().set_size(slint::LogicalSize::new(w, h));
+    // Size and position in one OS call first: resizing alone keeps the bottom-left corner and
+    // shows one frame with the notch off-center (jitter). Then tell Slint the same size, or it
+    // resizes the window back to its own idea of the size.
     ui.window()
         .with_winit_window(|win| crate::platform::place_top_center(win, screen, w, h));
+    ui.window().set_size(slint::LogicalSize::new(w, h));
 }
 
 fn with(weak: &Weak<Notch>, f: impl FnOnce(&Notch)) {

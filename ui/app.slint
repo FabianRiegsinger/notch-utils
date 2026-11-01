@@ -199,12 +199,14 @@ export component NotchWindow inherits Window {
     // Animated body size: the outline and the content both follow it.
     property <length> body-w: root.shape-width;
     property <length> body-h: root.shape-height;
-    animate body-w, body-h { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+    // Peek eases in slower and softer than opening; ease-out-quint without overshoot.
+    property <duration> anim: root.state == NotchState.peek ? 450ms : 320ms;
+    animate body-w, body-h { duration: root.anim; easing: cubic-bezier(0.22, 1, 0.36, 1); }
     property <bool> closed: root.state == NotchState.collapsed;
     // Collapsed: the hardware notch's small top flares and bottom corners (MacBook Pro).
     property <length> radius: root.open ? 28px : root.closed ? 8px : min(root.body-h / 2, 12px);
     property <length> flare: root.closed ? 4px : root.shoulder;
-    animate radius, flare { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+    animate radius, flare { duration: root.anim; easing: cubic-bezier(0.22, 1, 0.36, 1); }
     // Height of the top band holding the tab icons.
     property <length> band: max(root.top-inset, 32px);
 
@@ -265,6 +267,9 @@ export component NotchWindow inherits Window {
         }
 
         if root.state == NotchState.peek: Text {
+            opacity: 0;
+            init => { self.opacity = 1; }
+            animate opacity { duration: 220ms; delay: 180ms; easing: ease-out; }
             y: root.top-inset;
             height: parent.height - root.top-inset;
             width: parent.width;
