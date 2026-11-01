@@ -196,7 +196,12 @@ export component NotchWindow inherits Window {
     callback tab-changed(int);
 
     property <bool> open: root.state == NotchState.expanded;
-    property <length> radius: root.open ? 28px : min(root.shape-height / 2, 12px);
+    // Animated body size: the outline and the content both follow it.
+    property <length> body-w: root.shape-width;
+    property <length> body-h: root.shape-height;
+    animate body-w, body-h { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+    property <length> radius: root.open ? 28px : min(root.body-h / 2, 12px);
+    animate radius { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
     // Height of the top band holding the tab icons.
     property <length> band: max(root.top-inset, 30px);
 
@@ -209,15 +214,15 @@ export component NotchWindow inherits Window {
     Path {
         x: (root.width - self.width) / 2;
         y: 0;
-        width: root.shape-width + 2 * root.shoulder;
-        height: root.shape-height;
+        width: root.body-w + 2 * root.shoulder;
+        height: root.body-h;
         viewbox-width: self.width / 1px;
         viewbox-height: self.height / 1px;
         fill: root.shape-color;
-        property <float> w: root.shape-width / 1px;
-        property <float> h: root.shape-height / 1px;
+        property <float> w: root.body-w / 1px;
+        property <float> h: root.body-h / 1px;
         property <float> s: root.shoulder / 1px;
-        property <float> r: min(root.radius, root.shape-height / 2) / 1px;
+        property <float> r: min(root.radius, root.body-h / 2) / 1px;
         commands: "M 0 0 L " + (self.w + 2 * self.s) + " 0"
             + " Q " + (self.w + self.s) + " 0 " + (self.w + self.s) + " " + self.s
             + " L " + (self.w + self.s) + " " + (self.h - self.r)
@@ -231,11 +236,9 @@ export component NotchWindow inherits Window {
     body := Rectangle {
         x: (root.width - self.width) / 2;
         y: 0;
-        width: root.shape-width;
-        height: root.shape-height;
+        width: root.body-w;
+        height: root.body-h;
         clip: true;
-
-        animate width, height { duration: 380ms; easing: cubic-bezier(0.3, 1.25, 0.45, 1); }
 
         // Behind the content: catches clicks that no module control handled.
         TouchArea {

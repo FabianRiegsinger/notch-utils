@@ -12,7 +12,8 @@ use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 /// Matches the `animate width, height` duration in app.slint, plus a small margin.
-const SHRINK_AFTER: Duration = Duration::from_millis(270);
+/// After the 300 ms body animation in app.slint.
+const SHRINK_AFTER: Duration = Duration::from_millis(320);
 /// Collapsed size on screens without a hardware notch.
 const PILL: (f32, f32) = (160.0, 24.0);
 /// Concave corners that flow into the menu bar (must match the window's extra width).

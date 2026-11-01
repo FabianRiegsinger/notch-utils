@@ -12,9 +12,9 @@ pub fn setup_window(window: &winit::window::Window) {
         return;
     };
     ns_window.setLevel(NSStatusWindowLevel + 1);
+    // No `Stationary`: the notch slides with the menu bar when switching Spaces.
     ns_window.setCollectionBehavior(
         NSWindowCollectionBehavior::CanJoinAllSpaces
-            | NSWindowCollectionBehavior::Stationary
             | NSWindowCollectionBehavior::FullScreenAuxiliary
             | NSWindowCollectionBehavior::IgnoresCycle,
     );
