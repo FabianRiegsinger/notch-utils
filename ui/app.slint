@@ -49,17 +49,17 @@ component TabIcon inherits Rectangle {
     in property <ModuleTab> tab;
     in property <bool> active;
     callback select(int);
-    width: 26px;
-    height: 26px;
-    border-radius: 13px;
+    width: 38px;
+    height: 38px;
+    border-radius: 19px;
     background: root.active ? Palette.surface-hover : touch.has-hover ? Palette.surface : transparent;
     animate background { duration: 150ms; }
     accessible-role: AccessibleRole.tab;
     accessible-label: root.tab.title;
     accessible-action-default => { root.select(root.tab.index); }
     Icon {
-        width: 15px;
-        height: 15px;
+        width: 30px;
+        height: 30px;
         name: root.tab.id;
         tint: root.active ? Palette.fg : Palette.fg-dim;
     }
@@ -203,7 +203,7 @@ export component NotchWindow inherits Window {
     property <length> radius: root.open ? 28px : min(root.body-h / 2, 12px);
     animate radius { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
     // Height of the top band holding the tab icons.
-    property <length> band: max(root.top-inset, 30px);
+    property <length> band: max(root.top-inset, 42px);
 
     function select(i: int) {
         root.active-tab = i;
@@ -281,8 +281,8 @@ export component NotchWindow inherits Window {
             // Tab icons in the camera band, left and right of the notch.
             if root.modules.length > 1: HorizontalLayout {
                 x: parent.width / 2 - root.camera-width / 2 - 12px - self.preferred-width;
-                y: (root.band - 26px) / 2;
-                height: 26px;
+                y: (root.band - 38px) / 2;
+                height: 38px;
                 spacing: 4px;
                 for t in root.tabs-left: TabIcon {
                     tab: t;
@@ -292,8 +292,8 @@ export component NotchWindow inherits Window {
             }
             if root.modules.length > 1: HorizontalLayout {
                 x: parent.width / 2 + root.camera-width / 2 + 12px;
-                y: (root.band - 26px) / 2;
-                height: 26px;
+                y: (root.band - 38px) / 2;
+                height: 38px;
                 spacing: 4px;
                 for t in root.tabs-right: TabIcon {
                     tab: t;
