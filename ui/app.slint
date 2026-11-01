@@ -7,7 +7,7 @@ import { ClipboardView, ClipState, ClipEntry } from "modules/clipboard.slint";
 import { ShelfView, ShelfState, ShelfEntry } from "modules/shelf.slint";
 import { AiView, AiState } from "modules/ai.slint";
 import { CalendarView, CalState, CalEvent, CalDay } from "modules/calendar.slint";
-import { TermView, TermState, TermLine, TermRun } from "modules/terminal.slint";
+import { TermView, TermState, TermLine, TermRun, TermPane } from "modules/terminal.slint";
 import { HomeView, HomeState } from "modules/home.slint";
 import { MusicView, MusicState } from "modules/music.slint";
 import { AwakeView, AwakeState } from "modules/awake.slint";
@@ -15,7 +15,7 @@ import { DownloadsView, DlState, DlEntry } from "modules/downloads.slint";
 import { DevicesView, DevState, DevEntry } from "modules/devices.slint";
 import { MirrorView, MirrorState } from "modules/mirror.slint";
 
-export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState, DlState, DlEntry, DevState, DevEntry, MirrorState }
+export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState, DlState, DlEntry, DevState, DevEntry, MirrorState, TermPane }
 
 export enum NotchState { collapsed, peek, expanded }
 
@@ -49,17 +49,17 @@ component TabIcon inherits Rectangle {
     in property <ModuleTab> tab;
     in property <bool> active;
     callback select(int);
-    width: 38px;
-    height: 38px;
-    border-radius: 19px;
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
     background: root.active ? Palette.surface-hover : touch.has-hover ? Palette.surface : transparent;
     animate background { duration: 150ms; }
     accessible-role: AccessibleRole.tab;
     accessible-label: root.tab.title;
     accessible-action-default => { root.select(root.tab.index); }
     Icon {
-        width: 30px;
-        height: 30px;
+        width: 15px;
+        height: 15px;
         name: root.tab.id;
         tint: root.active ? Palette.fg : Palette.fg-dim;
     }
@@ -206,7 +206,7 @@ export component NotchWindow inherits Window {
     property <length> flare: root.closed ? 4px : root.shoulder;
     animate radius, flare { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
     // Height of the top band holding the tab icons.
-    property <length> band: max(root.top-inset, 42px);
+    property <length> band: max(root.top-inset, 32px);
 
     function select(i: int) {
         root.active-tab = i;
@@ -284,8 +284,8 @@ export component NotchWindow inherits Window {
             // Tab icons in the camera band, left and right of the notch.
             if root.modules.length > 1: HorizontalLayout {
                 x: parent.width / 2 - root.camera-width / 2 - 12px - self.preferred-width;
-                y: (root.band - 38px) / 2;
-                height: 38px;
+                y: (root.band - 28px) / 2;
+                height: 28px;
                 spacing: 4px;
                 for t in root.tabs-left: TabIcon {
                     tab: t;
@@ -295,8 +295,8 @@ export component NotchWindow inherits Window {
             }
             if root.modules.length > 1: HorizontalLayout {
                 x: parent.width / 2 + root.camera-width / 2 + 12px;
-                y: (root.band - 38px) / 2;
-                height: 38px;
+                y: (root.band - 28px) / 2;
+                height: 28px;
                 spacing: 4px;
                 for t in root.tabs-right: TabIcon {
                     tab: t;

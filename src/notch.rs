@@ -29,10 +29,15 @@ pub struct Notch {
     has_activity: Cell<bool>,
     /// Pointer over the window (OS enter/leave), so a HUD doesn't collapse under it.
     hovered: Cell<bool>,
+    /// Pinned open (terminal): leaving or losing focus doesn't collapse.
+    pinned: Cell<bool>,
     /// `None` = main screen; `Some(i)` = platform screen index.
     screen: Cell<Option<usize>>,
     leave_timer: slint::Timer,
     shrink_timer: slint::Timer,
+    /// shortcut: polls for a Space switch (4x/s) instead of observing
+    /// NSWorkspaceActiveSpaceDidChangeNotification.
+    space_timer: slint::Timer,
     /// Called after every state or tab change, so the app can update module visibility.
     on_change: Rc<dyn Fn()>,
     /// Offered every key press while expanded; true = a module consumed it.
@@ -58,9 +63,11 @@ impl Notch {
             state: Cell::new(State::Collapsed),
             has_activity: Cell::new(false),
             hovered: Cell::new(false),
+            pinned: Cell::new(false),
             screen: Cell::new(None),
             leave_timer: slint::Timer::default(),
             shrink_timer: slint::Timer::default(),
+            space_timer: slint::Timer::default(),
             on_change,
             on_key,
             modifiers: Cell::new(Default::default()),
@@ -143,6 +150,19 @@ impl Notch {
                     n.apply_appearance();
                     let s = n.state.get();
                     n.apply(s, s);
+                    if cfg!(target_os = "macos") {
+                        let ui = n.ui.as_weak();
+                        n.space_timer.start(
+                            slint::TimerMode::Repeated,
+                            Duration::from_millis(250),
+                            move || {
+                                if let Some(ui) = ui.upgrade() {
+                                    ui.window()
+                                        .with_winit_window(crate::platform::follow_active_space);
+                                }
+                            },
+                        );
+                    }
                 }),
                 Err(e) => log::error!("notch window was not created: {e}"),
             }
@@ -185,7 +205,14 @@ impl Notch {
             .flatten()
     }
 
+    pub fn set_pinned(&self, on: bool) {
+        self.pinned.set(on);
+    }
+
     pub fn handle(&self, event: Event) {
+        if self.pinned.get() && matches!(event, Event::LeaveTimeout | Event::FocusLost) {
+            return;
+        }
         let old = self.state.get();
         let new = state::next(old, event, self.cfg.borrow().behavior.open_mode);
         if new != old {

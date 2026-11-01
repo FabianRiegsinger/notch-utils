@@ -33,6 +33,8 @@ pub struct Ctx {
     pub collapse: Rc<dyn Fn()>,
     /// Flash a short HUD in the peek area (volume, battery).
     pub hud: Rc<dyn Fn(Hud)>,
+    /// Keep the notch open when the pointer leaves or another app gets focus (terminal pin).
+    pub pin: Rc<dyn Fn(bool)>,
 }
 
 /// A key press: either typed text ("a", "+", "ü") or a named key ("Enter", "ArrowUp", "F5").

@@ -1,4 +1,4 @@
-import { Palette } from "../components.slint";
+import { Palette, Icon, IconButton } from "../components.slint";
 
 export struct TermRun {
     col: int,
@@ -13,26 +13,40 @@ export struct TermLine {
     runs: [TermRun],
 }
 
+export struct TermPane {
+    lines: [TermLine],
+    cursor-col: int,
+    cursor-row: int,
+    cursor-visible: bool,
+    exited: bool,
+}
+
 export global TermState {
-    in property <[TermLine]> lines;
-    in property <int> cursor-col;
-    in property <int> cursor-row;
-    in property <bool> cursor-visible;
-    in property <bool> exited;
+    // Stacked terminals, top to bottom; keys go to `focused`.
+    in property <[TermPane]> panes;
+    in property <int> focused;
+    in property <bool> pinned;
+    in property <bool> can-add: true;
     in property <string> font-family: "monospace";
-    // view width/height and cell width/height, in logical px
-    callback resized(float, float, float, float);
-    // lines to scroll; positive = back into history
-    callback scroll(int);
+    // pane, view width/height and cell width/height, in logical px
+    callback resized(int, float, float, float, float);
+    // pane, lines to scroll; positive = back into history
+    callback scroll(int, int);
+    callback focus(int);
+    callback add();
+    callback close(int);
+    callback toggle-pin();
 }
 
 component TermGrid inherits Rectangle {
+    in property <TermPane> pane;
+    in property <int> index;
     clip: true;
     property <length> cw: measure.preferred-width / 10;
-    property <length> ch: measure.preferred-height;
+    property <length> ch: measure.preferred-height * 1.15;
 
     function report() {
-        TermState.resized(root.width / 1px, root.height / 1px, root.cw / 1px, root.ch / 1px);
+        TermState.resized(root.index, root.width / 1px, root.height / 1px, root.cw / 1px, root.ch / 1px);
     }
     init => { root.report(); }
     changed width => { root.report(); }
@@ -42,17 +56,19 @@ component TermGrid inherits Rectangle {
         visible: false;
         text: "MMMMMMMMMM";
         font-family: TermState.font-family;
-        font-size: 12px;
+        font-size: 13px;
     }
 
     TouchArea {
+        mouse-cursor: text;
+        clicked => { TermState.focus(root.index); }
         scroll-event(e) => {
-            TermState.scroll(Math.round(e.delta-y / root.ch));
+            TermState.scroll(root.index, Math.round(e.delta-y / root.ch));
             return accept;
         }
     }
 
-    for line[r] in TermState.lines: Rectangle {
+    for line[r] in root.pane.lines: Rectangle {
         x: 0;
         y: r * root.ch;
         width: root.width;
@@ -67,21 +83,21 @@ component TermGrid inherits Rectangle {
                 text: run.text;
                 color: run.fg;
                 font-family: TermState.font-family;
-                font-size: 12px;
+                font-size: 13px;
                 font-weight: run.bold ? 700 : 400;
             }
         }
     }
 
-    if TermState.cursor-visible: Rectangle {
-        x: TermState.cursor-col * root.cw;
-        y: TermState.cursor-row * root.ch;
+    if root.pane.cursor-visible: Rectangle {
+        x: root.pane.cursor-col * root.cw;
+        y: root.pane.cursor-row * root.ch;
         width: root.cw;
         height: root.ch;
-        background: Palette.fg.with-alpha(0.55);
+        background: TermState.focused == root.index ? Palette.fg.with-alpha(0.85) : Palette.fg.with-alpha(0.3);
     }
 
-    if TermState.exited: Rectangle {
+    if root.pane.exited: Rectangle {
         background: #000000cc;
         Text {
             text: "Shell exited. Press Enter to start a new one.";
@@ -91,15 +107,55 @@ component TermGrid inherits Rectangle {
     }
 }
 
-// Rounded panel around the grid, like a terminal card.
-export component TermView inherits Rectangle {
+// One terminal card; a thin outline marks the focused one when several are stacked.
+component TermCard inherits Rectangle {
+    in property <TermPane> pane;
+    in property <int> index;
+    property <bool> stacked: TermState.panes.length > 1;
     background: Palette.surface;
-    border-radius: 14px;
+    border-radius: 20px;
+    border-width: root.stacked && TermState.focused == root.index ? 1px : 0px;
+    border-color: Palette.fg.with-alpha(0.25);
     clip: true;
     TermGrid {
-        x: 14px;
+        x: 16px;
         y: 12px;
-        width: parent.width - 28px;
+        width: parent.width - 32px;
         height: parent.height - 24px;
+        pane: root.pane;
+        index: root.index;
+    }
+    if root.stacked: IconButton {
+        x: parent.width - self.width - 8px;
+        y: 8px;
+        size: 22px;
+        icon: "close";
+        label: "Close terminal";
+        clicked => { TermState.close(root.index); }
+    }
+}
+
+export component TermView inherits HorizontalLayout {
+    spacing: 10px;
+    VerticalLayout {
+        horizontal-stretch: 1;
+        spacing: 8px;
+        for p[i] in TermState.panes: TermCard { pane: p; index: i; vertical-stretch: 1; }
+    }
+    VerticalLayout {
+        alignment: start;
+        spacing: 8px;
+        Rectangle {
+            width: 32px;
+            height: 32px;
+            border-radius: 16px;
+            background: TermState.pinned ? Palette.fg : pin-touch.has-hover ? Palette.surface-hover : Palette.surface;
+            accessible-role: button;
+            accessible-label: TermState.pinned ? "Unpin" : "Pin open";
+            accessible-action-default => { TermState.toggle-pin(); }
+            Icon { width: 15px; height: 15px; name: "pin"; tint: TermState.pinned ? #000 : Palette.fg; }
+            pin-touch := TouchArea { mouse-cursor: pointer; clicked => { TermState.toggle-pin(); } }
+        }
+        if TermState.can-add: IconButton { icon: "plus"; label: "New terminal"; clicked => { TermState.add(); } }
     }
 }

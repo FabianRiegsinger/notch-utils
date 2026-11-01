@@ -34,20 +34,6 @@ export global StatsState {
     in property <float> disk-frac;
 }
 
-// Bar chart of the last 60 samples, right-aligned so the newest is at the right edge.
-component Spark inherits Rectangle {
-    in property <[float]> values;
-    in property <color> bar-color: Palette.accent;
-    property <length> step: self.width / 60;
-    for v[i] in root.values: Rectangle {
-        x: (60 - root.values.length + i) * root.step;
-        width: max(root.step - 1px, 1px);
-        height: max(root.height * clamp(v, 0, 1), 1px);
-        y: root.height - self.height;
-        background: root.bar-color;
-    }
-}
-
 component Card inherits Rectangle {
     in property <string> icon;
     in property <string> title;
