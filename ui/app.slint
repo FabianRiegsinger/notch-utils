@@ -200,8 +200,11 @@ export component NotchWindow inherits Window {
     property <length> body-w: root.shape-width;
     property <length> body-h: root.shape-height;
     animate body-w, body-h { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
-    property <length> radius: root.open ? 28px : min(root.body-h / 2, 12px);
-    animate radius { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+    property <bool> closed: root.state == NotchState.collapsed;
+    // Collapsed: the hardware notch's small top flares and bottom corners (MacBook Pro).
+    property <length> radius: root.open ? 28px : root.closed ? 8px : min(root.body-h / 2, 12px);
+    property <length> flare: root.closed ? 4px : root.shoulder;
+    animate radius, flare { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
     // Height of the top band holding the tab icons.
     property <length> band: max(root.top-inset, 42px);
 
@@ -214,14 +217,14 @@ export component NotchWindow inherits Window {
     Path {
         x: (root.width - self.width) / 2;
         y: 0;
-        width: root.body-w + 2 * root.shoulder;
+        width: root.body-w + 2 * root.flare;
         height: root.body-h;
         viewbox-width: self.width / 1px;
         viewbox-height: self.height / 1px;
         fill: root.shape-color;
         property <float> w: root.body-w / 1px;
         property <float> h: root.body-h / 1px;
-        property <float> s: root.shoulder / 1px;
+        property <float> s: root.flare / 1px;
         property <float> r: min(root.radius, root.body-h / 2) / 1px;
         commands: "M 0 0 L " + (self.w + 2 * self.s) + " 0"
             + " Q " + (self.w + self.s) + " 0 " + (self.w + self.s) + " " + self.s
