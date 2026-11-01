@@ -146,9 +146,21 @@ impl Shelf {
                 missing: !i.path.exists(),
             })
             .collect();
+        let summary = {
+            let items = self.items.borrow();
+            let n = items.len();
+            let bytes: u64 = items.iter().filter_map(|i| i.size).sum();
+            let n = format!("{n} {}", if n == 1 { "item" } else { "items" });
+            if bytes > 0 {
+                format!("{n} · {}", super::stats::format_bytes(bytes as f64))
+            } else {
+                n
+            }
+        };
         self.windows.borrow_mut().retain(|w| {
             let Some(ui) = w.upgrade() else { return false };
             let g = ui.global::<ShelfState>();
+            g.set_summary(summary.as_str().into());
             g.set_entries(Rc::new(VecModel::from(rows.clone())).into());
             g.set_can_drag(cfg!(target_os = "macos"));
             true

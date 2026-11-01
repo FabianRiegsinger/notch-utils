@@ -1,8 +1,6 @@
 import { Palette, Icon, Card, Ring } from "../components.slint";
 import { TimerState } from "timer.slint";
 import { CalState, WeekStrip } from "calendar.slint";
-import { StatsState } from "stats.slint";
-import { AiState } from "ai.slint";
 import { MusicState, Cover, Controls } from "music.slint";
 
 export global HomeState {
@@ -29,105 +27,125 @@ component RoundButton inherits Rectangle {
     touch := TouchArea { clicked => { root.clicked(); } }
 }
 
-component MiniBar inherits VerticalLayout {
-    in property <string> label;
-    in property <float> pct;
-    spacing: 3px;
+// Battery glyph with the charge level, then the percent below (green; red when low).
+component BatteryBadge inherits VerticalLayout {
+    property <bool> low: !HomeState.charging && HomeState.battery-pct <= 20;
+    property <color> tint: root.low ? Palette.red : Palette.green;
+    alignment: center;
+    spacing: 6px;
     HorizontalLayout {
-        Text { text: root.label; color: Palette.fg-dim; font-size: 10px; horizontal-stretch: 1; }
-        Text { text: Math.round(root.pct) + "%"; color: Palette.fg; font-size: 10px; font-weight: 600; }
-    }
-    Rectangle {
-        height: 4px;
-        border-radius: 2px;
-        background: Palette.surface-hover;
+        alignment: center;
+        spacing: 1px;
         Rectangle {
-            x: 0;
-            width: parent.width * clamp(root.pct / 100, 0, 1);
-            border-radius: 2px;
-            background: root.pct >= 90 ? Palette.red : Palette.purple;
+            width: 30px;
+            height: 15px;
+            border-radius: 4px;
+            border-width: 1.5px;
+            border-color: Palette.fg-dim;
+            Rectangle {
+                x: 2.5px;
+                y: 2.5px;
+                height: parent.height - 5px;
+                width: (parent.width - 5px) * clamp(HomeState.battery-pct / 100, 0, 1);
+                border-radius: 2px;
+                background: root.tint;
+            }
+            if HomeState.charging: Icon { width: 11px; height: 11px; name: "bolt"; tint: #fff; }
         }
+        Rectangle { width: 2px; height: 6px; y: (parent.height - 6px) / 2; border-radius: 1px; background: Palette.fg-dim; }
     }
+    Text { text: HomeState.battery-pct + "%"; color: root.tint; font-size: 17px; font-weight: 600; horizontal-alignment: center; }
 }
 
 export component HomeView inherits HorizontalLayout {
-    spacing: 18px;
+    spacing: 20px;
     padding-left: 4px;
     padding-right: 4px;
 
-    // Now Playing (while a track is loaded) instead of the timer
-    if MusicState.has-track: VerticalLayout {
-        width: 150px;
-        alignment: center;
-        spacing: 8px;
-        HorizontalLayout { alignment: center; Cover { size: 76px; } }
-        Text { text: MusicState.title; color: Palette.fg; font-size: 12px; font-weight: 600; horizontal-alignment: center; overflow: elide; }
-        Controls { spacing-x: 2px; }
-    }
-
-    // Timer
-    if !MusicState.has-track: VerticalLayout {
-        width: 130px;
-        alignment: center;
-        spacing: 10px;
-        HorizontalLayout {
+    // Now Playing (while a track is loaded), otherwise the timer.
+    if MusicState.has-track: HorizontalLayout {
+        width: 300px;
+        spacing: 14px;
+        VerticalLayout { alignment: center; Cover { size: 96px; } }
+        VerticalLayout {
             alignment: center;
-            glow := Rectangle {
-                width: 92px;
-                height: 92px;
-                border-radius: 46px;
-                drop-shadow-blur: TimerState.running ? 24px : 0px;
-                drop-shadow-color: Palette.orange.with-alpha(0.35);
-                background: #000;
-                Ring {
-                    width: 92px;
-                    height: 92px;
-                    progress: TimerState.progress;
-                    tint: TimerState.running ? Palette.orange : Palette.fg-faint;
-                    Text {
-                        text: TimerState.display;
-                        color: Palette.fg;
-                        font-size: 19px;
-                        font-weight: 600;
-                    }
+            spacing: 3px;
+            Text { text: MusicState.title; color: Palette.fg; font-size: 15px; font-weight: 600; overflow: elide; }
+            Text { text: MusicState.artist; color: Palette.fg-dim; font-size: 13px; overflow: elide; }
+            Rectangle {
+                height: 4px;
+                border-radius: 2px;
+                background: Palette.surface-hover;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * clamp(MusicState.progress, 0, 1);
+                    border-radius: 2px;
+                    background: Palette.fg;
+                    animate width { duration: 900ms; }
                 }
             }
+            HorizontalLayout { alignment: start; Controls { spacing-x: 6px; icon-size: 16px; } }
         }
-        HorizontalLayout {
+    }
+
+    if !MusicState.has-track: HorizontalLayout {
+        width: 300px;
+        spacing: 16px;
+        VerticalLayout {
             alignment: center;
-            spacing: 10px;
-            RoundButton {
-                icon: TimerState.running ? "pause" : "play";
-                label: TimerState.running ? "Pause timer" : "Start timer";
-                base: Palette.orange.with-alpha(0.22);
+            Ring {
+                width: 84px;
+                height: 84px;
+                thickness: 6px;
+                progress: TimerState.progress;
                 tint: Palette.orange;
-                clicked => { TimerState.start-pause(); }
+                Icon { width: 26px; height: 26px; name: "timer"; }
             }
-            RoundButton { icon: "reset"; label: "Reset timer"; tint: Palette.fg-dim; clicked => { TimerState.reset(); } }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 6px;
+            Text { text: TimerState.display; color: Palette.fg; font-size: 30px; font-weight: 700; }
+            HorizontalLayout {
+                alignment: start;
+                spacing: 8px;
+                RoundButton {
+                    icon: TimerState.running ? "pause" : "play";
+                    label: TimerState.running ? "Pause timer" : "Start timer";
+                    base: #fff;
+                    tint: #000;
+                    clicked => { TimerState.start-pause(); }
+                }
+                RoundButton { icon: "close"; label: "Reset timer"; clicked => { TimerState.reset(); } }
+            }
         }
     }
 
     Rectangle { width: 1px; background: Palette.separator; }
 
-    // Week + next event
+    // Week, battery and the next event
     VerticalLayout {
         horizontal-stretch: 1;
         alignment: center;
-        spacing: 10px;
-        Text { text: HomeState.date; color: Palette.fg-dim; font-size: 11px; font-weight: 500; }
-        WeekStrip { }
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 14px;
+            WeekStrip { horizontal-stretch: 1; }
+            if HomeState.has-battery: Rectangle { width: 1px; background: Palette.separator; }
+            if HomeState.has-battery: BatteryBadge { width: 64px; }
+        }
         Card {
-            height: 48px;
-            border-radius: 12px;
+            height: 52px;
+            border-radius: 14px;
             HorizontalLayout {
-                padding-left: 10px;
-                padding-right: 10px;
-                spacing: 10px;
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 12px;
                 Rectangle {
-                    width: 3px;
-                    y: 9px;
-                    height: parent.height - 18px;
-                    border-radius: 1.5px;
+                    width: 4px;
+                    y: 10px;
+                    height: parent.height - 20px;
+                    border-radius: 2px;
                     background: CalState.has-next ? Palette.accent : Palette.fg-faint;
                 }
                 VerticalLayout {
@@ -136,53 +154,18 @@ export component HomeView inherits HorizontalLayout {
                     Text {
                         text: CalState.has-next ? CalState.next-title : (CalState.configured ? "No upcoming events" : "Add a calendar in Settings");
                         color: CalState.has-next ? Palette.fg : Palette.fg-dim;
-                        font-size: 13px;
+                        font-size: 15px;
                         font-weight: 600;
                         overflow: elide;
                     }
                     if CalState.has-next: Text {
                         text: CalState.next-when + (CalState.next-location != "" ? " · " + CalState.next-location : "");
                         color: Palette.fg-dim;
-                        font-size: 11px;
+                        font-size: 12px;
                         overflow: elide;
                     }
                 }
             }
-        }
-    }
-
-    Rectangle { width: 1px; background: Palette.separator; }
-
-    // Battery, Claude, system
-    VerticalLayout {
-        width: 116px;
-        alignment: center;
-        spacing: 12px;
-        if HomeState.has-battery: HorizontalLayout {
-            spacing: 6px;
-            Icon {
-                width: 18px;
-                height: 18px;
-                name: HomeState.charging ? "bolt" : (HomeState.battery-pct <= 20 ? "battery-low" : "battery");
-                tint: !HomeState.charging && HomeState.battery-pct <= 20 ? Palette.red : Palette.green;
-            }
-            Text {
-                text: HomeState.battery-pct + "%";
-                color: !HomeState.charging && HomeState.battery-pct <= 20 ? Palette.red : Palette.green;
-                font-size: 16px;
-                font-weight: 600;
-                vertical-alignment: center;
-            }
-        }
-        if AiState.has-data: VerticalLayout {
-            spacing: 6px;
-            MiniBar { label: "Claude 5 h"; pct: AiState.five-pct; }
-            MiniBar { label: "Claude week"; pct: AiState.week-pct; }
-        }
-        VerticalLayout {
-            spacing: 2px;
-            Text { text: "CPU  " + StatsState.cpu-text; color: Palette.fg-dim; font-size: 11px; }
-            Text { text: "RAM  " + StatsState.mem-text; color: Palette.fg-dim; font-size: 11px; overflow: elide; }
         }
     }
 }

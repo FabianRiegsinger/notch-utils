@@ -26,7 +26,7 @@ export global TermState {
     callback scroll(int);
 }
 
-export component TermView inherits Rectangle {
+component TermGrid inherits Rectangle {
     clip: true;
     property <length> cw: measure.preferred-width / 10;
     property <length> ch: measure.preferred-height;
@@ -88,5 +88,18 @@ export component TermView inherits Rectangle {
             color: Palette.fg;
             font-size: 12px;
         }
+    }
+}
+
+// Rounded panel around the grid, like a terminal card.
+export component TermView inherits Rectangle {
+    background: Palette.surface;
+    border-radius: 14px;
+    clip: true;
+    TermGrid {
+        x: 14px;
+        y: 12px;
+        width: parent.width - 28px;
+        height: parent.height - 24px;
     }
 }

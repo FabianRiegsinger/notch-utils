@@ -59,6 +59,13 @@ export component Icon inherits Image {
         : root.name == "reset" ? @image-url("../assets/icons/reset.svg")
         : root.name == "file" ? @image-url("../assets/icons/file.svg")
         : root.name == "folder" ? @image-url("../assets/icons/folder.svg")
+        : root.name == "close" ? @image-url("../assets/icons/close.svg")
+        : root.name == "open" ? @image-url("../assets/icons/open.svg")
+        : root.name == "trash" ? @image-url("../assets/icons/trash.svg")
+        : root.name == "cpu" ? @image-url("../assets/icons/cpu.svg")
+        : root.name == "memory" ? @image-url("../assets/icons/memory.svg")
+        : root.name == "network" ? @image-url("../assets/icons/network.svg")
+        : root.name == "disk" ? @image-url("../assets/icons/disk.svg")
         : @image-url("../assets/icons/settings.svg");
 }
 
@@ -100,6 +107,23 @@ export component Pill inherits Rectangle {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
+}
+
+// Round icon button (bars of actions under shelf, downloads, timer).
+export component IconButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <length> size: 32px;
+    callback clicked();
+    width: root.size;
+    height: root.size;
+    border-radius: root.size / 2;
+    background: touch.pressed ? Palette.surface-hover.brighter(0.2) : touch.has-hover ? Palette.surface-hover : Palette.surface;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    Icon { width: root.size * 0.45; height: root.size * 0.45; name: root.icon; }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
 }
 
 // Circular progress from 12 o'clock, clockwise.

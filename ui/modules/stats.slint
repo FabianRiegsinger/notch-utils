@@ -1,4 +1,4 @@
-import { Palette } from "../components.slint";
+import { Palette, Icon } from "../components.slint";
 
 export struct LabeledValue {
     label: string,
@@ -23,6 +23,15 @@ export global StatsState {
     in property <[LabeledValue]> temps;
     in property <[LabeledValue]> procs;
     in property <string> battery-text;
+    // Compact cards: area charts (60 x 100 viewbox paths), memory and system volume.
+    in property <string> cpu-path;
+    in property <string> mem-path;
+    in property <string> net-path;
+    in property <string> mem-used: "–";
+    in property <string> mem-sub;
+    in property <string> disk-free: "–";
+    in property <string> disk-sub;
+    in property <float> disk-frac;
 }
 
 // Bar chart of the last 60 samples, right-aligned so the newest is at the right edge.
@@ -40,25 +49,43 @@ component Spark inherits Rectangle {
 }
 
 component Card inherits Rectangle {
+    in property <string> icon;
     in property <string> title;
     in property <string> value;
     in property <string> sub;
+    // Area chart along the bottom edge (see area_path in stats.rs); empty = none.
+    in property <string> chart;
     background: Palette.surface;
     border-radius: 14px;
     horizontal-stretch: 1;
+    preferred-width: 100px;
+    clip: true;
 
-    VerticalLayout {
-        padding: 10px;
-        spacing: 2px;
-        Text { text: root.title; color: Palette.fg-dim; font-size: 11px; }
-        Text { text: root.value; color: Palette.fg; font-size: 20px; font-weight: 500; }
-        if root.sub != "": Text { text: root.sub; color: Palette.fg-dim; font-size: 11px; }
-        Rectangle {
-            vertical-stretch: 1;
-            min-height: 30px;
-            @children
-        }
+    if root.chart != "": Path {
+        x: 0;
+        y: parent.height - self.height + 1px;
+        width: parent.width;
+        height: parent.height * 0.36;
+        viewbox-width: 60;
+        viewbox-height: 100;
+        fill: Palette.fg.with-alpha(0.22);
+        stroke: Palette.fg.with-alpha(0.75);
+        stroke-width: 1.5px;
+        commands: root.chart;
     }
+    VerticalLayout {
+        padding: 12px;
+        spacing: 2px;
+        alignment: start;
+        HorizontalLayout {
+            spacing: 5px;
+            Icon { width: 12px; height: 12px; y: (parent.height - 12px) / 2; name: root.icon; tint: Palette.fg-dim; }
+            Text { text: root.title; color: Palette.fg-dim; font-size: 11px; font-weight: 500; }
+        }
+        Text { text: root.value; color: Palette.fg; font-size: 21px; font-weight: 600; }
+        if root.sub != "": Text { text: root.sub; color: Palette.fg-dim; font-size: 11px; overflow: elide; }
+    }
+    @children
 }
 
 component Bar inherits Rectangle {
@@ -96,25 +123,26 @@ component Rows inherits VerticalLayout {
 
 export component StatsView inherits VerticalLayout {
     if !StatsState.detailed: HorizontalLayout {
-        spacing: 10px;
+        spacing: 8px;
+        Card { icon: "cpu"; title: "CPU"; value: StatsState.cpu-text; chart: StatsState.cpu-path; }
+        Card { icon: "memory"; title: "Memory"; value: StatsState.mem-used; sub: StatsState.mem-sub; chart: StatsState.mem-path; }
+        Card { icon: "network"; title: "Network"; value: StatsState.down-text; sub: "↓ " + StatsState.down-text + " · ↑ " + StatsState.up-text; chart: StatsState.net-path; }
         Card {
-            title: "CPU";
-            value: StatsState.cpu-text;
-            Spark { values: StatsState.cpu-hist; }
-        }
-        Card {
-            title: "Memory";
-            value: StatsState.mem-text;
-            Spark { values: StatsState.mem-hist; }
-        }
-        Card {
-            title: "Network";
-            value: "↓ " + StatsState.down-text;
-            sub: "↑ " + StatsState.up-text;
+            icon: "disk";
+            title: "Disk";
+            value: StatsState.disk-free;
+            sub: StatsState.disk-sub;
             VerticalLayout {
-                spacing: 3px;
-                Spark { values: StatsState.down-hist; }
-                Spark { values: StatsState.up-hist; bar-color: Palette.fg-dim; }
+                padding: 12px;
+                spacing: 6px;
+                alignment: end;
+                Text { text: Math.round(StatsState.disk-frac * 100) + "% used"; color: Palette.fg-dim; font-size: 11px; }
+                Rectangle {
+                    height: 5px;
+                    border-radius: 2.5px;
+                    background: Palette.surface-hover;
+                    Rectangle { x: 0; width: parent.width * clamp(StatsState.disk-frac, 0, 1); border-radius: 2.5px; background: Palette.fg; }
+                }
             }
         }
     }

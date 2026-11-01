@@ -1,4 +1,4 @@
-import { Palette, Icon } from "../components.slint";
+import { Palette, Icon, IconButton } from "../components.slint";
 
 export struct DlEntry {
     name: string,
@@ -18,23 +18,12 @@ export global DlState {
     callback drag(int);
 }
 
-component LinkButton inherits Rectangle {
-    in property <string> text;
-    callback clicked();
-    height: 22px;
-    width: label.preferred-width + 14px;
-    border-radius: 11px;
-    background: touch.has-hover ? Palette.surface-hover : transparent;
-    label := Text { text: root.text; color: Palette.fg-dim; font-size: 11px; }
-    touch := TouchArea { clicked => { root.clicked(); } }
-}
-
 component Row inherits Rectangle {
     in property <DlEntry> entry;
     property <bool> dragged;
-    height: 44px;
-    border-radius: 10px;
-    background: touch.has-hover && !root.entry.active ? Palette.surface-hover : Palette.surface;
+    height: 52px;
+    border-radius: 12px;
+    background: touch.has-hover && !root.entry.active ? Palette.surface : transparent;
     accessible-role: button;
     accessible-label: root.entry.name;
     accessible-action-default => { DlState.open(root.entry.index); }
@@ -51,24 +40,46 @@ component Row inherits Rectangle {
         double-clicked => { DlState.open(root.entry.index); }
     }
     HorizontalLayout {
-        padding-left: 10px;
-        padding-right: 6px;
-        spacing: 10px;
-        Icon {
-            width: 18px;
-            y: (parent.height - 18px) / 2;
-            height: 18px;
-            name: root.entry.active ? "download" : "file";
-            tint: root.entry.active ? Palette.teal : Palette.fg-dim;
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 12px;
+        // Paper-white document like a Finder icon.
+        Rectangle {
+            width: 26px;
+            height: 32px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 3px;
+            background: #f2f2f7;
+            VerticalLayout {
+                padding: 6px;
+                padding-top: 8px;
+                spacing: 3px;
+                alignment: start;
+                for _ in 4: Rectangle { height: 1.5px; background: #c7c7cc; }
+            }
         }
         VerticalLayout {
             alignment: center;
             horizontal-stretch: 1;
-            Text { text: root.entry.name; color: Palette.fg; font-size: 12px; overflow: elide; }
-            Text { text: root.entry.meta; color: root.entry.active ? Palette.teal : Palette.fg-dim; font-size: 10px; }
+            spacing: 4px;
+            Text { text: root.entry.name; color: Palette.fg; font-size: 14px; font-weight: 600; overflow: elide; }
+            // In progress: the size isn't known in advance, so a moving bar instead of a percentage.
+            if root.entry.active: Rectangle {
+                height: 4px;
+                border-radius: 2px;
+                background: Palette.surface-hover;
+                clip: true;
+                Rectangle {
+                    width: parent.width * 0.3;
+                    x: (parent.width * 1.3) * mod(animation-tick() / 1.6s, 1) - self.width;
+                    border-radius: 2px;
+                    background: Palette.accent;
+                }
+            }
+            Text { text: root.entry.meta; color: Palette.fg-dim; font-size: 11px; }
         }
-        if !root.entry.active: LinkButton { y: (parent.height - self.height) / 2; text: "Show"; clicked => { DlState.reveal(root.entry.index); } }
-        if !root.entry.active: LinkButton { y: (parent.height - self.height) / 2; text: "Open"; clicked => { DlState.open(root.entry.index); } }
+        if !root.entry.active: IconButton { y: (parent.height - self.height) / 2; icon: "folder"; label: "Show in folder"; clicked => { DlState.reveal(root.entry.index); } }
+        if !root.entry.active: IconButton { y: (parent.height - self.height) / 2; icon: "open"; label: "Open"; clicked => { DlState.open(root.entry.index); } }
     }
 }
 

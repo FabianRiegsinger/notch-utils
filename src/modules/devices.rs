@@ -36,14 +36,6 @@ impl Device {
             self.main.map(|v| format!("{v}%")).unwrap_or_default()
         }
     }
-
-    /// Lowest known level, for the low-battery color.
-    pub fn lowest(&self) -> Option<u8> {
-        [self.main, self.left, self.right]
-            .into_iter()
-            .flatten()
-            .min()
-    }
 }
 
 fn icon_for(kind: &str) -> &'static str {
@@ -295,8 +287,17 @@ impl Devices {
             .map(|d| DevEntry {
                 name: d.name.as_str().into(),
                 icon: d.icon.into(),
-                battery: d.battery_text().into(),
-                low: d.lowest().is_some_and(|l| l <= 20),
+                kind: match d.icon {
+                    "headphones" => "Headphones",
+                    "keyboard" => "Keyboard",
+                    "mouse" => "Mouse or trackpad",
+                    _ => "Bluetooth device",
+                }
+                .into(),
+                main: d.main.map_or(-1, i32::from),
+                left: d.left.map_or(-1, i32::from),
+                right: d.right.map_or(-1, i32::from),
+                case: d.case.map_or(-1, i32::from),
             })
             .collect();
         let supported = cfg!(not(target_os = "windows"));
@@ -366,7 +367,7 @@ mod tests {
             ("headphones", "L 80% · R 75% · Case 60%")
         );
         assert_eq!(
-            (d[1].icon, d[1].battery_text().as_str(), d[1].lowest()),
+            (d[1].icon, d[1].battery_text().as_str(), d[1].main),
             ("keyboard", "15%", Some(15))
         );
         assert!(parse_system_profiler("{}").is_empty());

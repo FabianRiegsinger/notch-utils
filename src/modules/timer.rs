@@ -128,6 +128,17 @@ impl Timer {
         let finished = self.clock.borrow_mut().check_finished(now);
         let c = self.clock.borrow().clone();
         let display = SharedString::from(format(c.shown(now)));
+        let label = SharedString::from(if c.stopwatch {
+            "Stopwatch".to_string()
+        } else {
+            format!("{} min timer", c.duration.as_secs().div_ceil(60))
+        });
+        let ends = SharedString::from(if c.running() && !c.stopwatch {
+            let left = chrono::Duration::from_std(c.shown(now)).unwrap_or_default();
+            format!("Ends at {}", (chrono::Local::now() + left).format("%H:%M"))
+        } else {
+            String::new()
+        });
         self.windows.borrow_mut().retain(|w| {
             let Some(ui) = w.upgrade() else { return false };
             let g = ui.global::<TimerState>();
@@ -139,6 +150,8 @@ impl Timer {
             });
             g.set_running(c.running());
             g.set_stopwatch(c.stopwatch);
+            g.set_label(label.clone());
+            g.set_ends(ends.clone());
             true
         });
         if c.running() && !self.tick.running() {

@@ -1,10 +1,14 @@
-import { Palette, Icon, Card } from "../components.slint";
+import { Palette, Icon } from "../components.slint";
 
 export struct DevEntry {
     name: string,
     icon: string,
-    battery: string,
-    low: bool,
+    kind: string,
+    // Battery percent per part; -1 = not reported.
+    main: int,
+    left: int,
+    right: int,
+    case: int,
 }
 
 export global DevState {
@@ -12,8 +16,74 @@ export global DevState {
     in property <bool> supported: true;
 }
 
+// Small battery glyph filled to `pct`, then the percent.
+component Level inherits HorizontalLayout {
+    in property <string> label;
+    in property <int> pct;
+    property <color> tint: root.pct <= 20 ? Palette.red : Palette.green;
+    spacing: 5px;
+    if root.label != "": Text { text: root.label; color: Palette.fg-dim; font-size: 13px; vertical-alignment: center; }
+    Rectangle {
+        width: 22px;
+        height: 11px;
+        y: (parent.height - self.height) / 2;
+        border-radius: 3px;
+        border-width: 1px;
+        border-color: Palette.fg-faint;
+        Rectangle {
+            x: 2px;
+            y: 2px;
+            height: parent.height - 4px;
+            width: (parent.width - 4px) * clamp(root.pct / 100, 0, 1);
+            border-radius: 1.5px;
+            background: root.tint;
+        }
+    }
+    Text { text: root.pct + "%"; color: Palette.fg; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+}
+
+component Row inherits Rectangle {
+    in property <DevEntry> d;
+    height: 42px;
+    border-radius: 12px;
+    background: Palette.surface;
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 14px;
+        spacing: 10px;
+        Rectangle {
+            width: 28px;
+            height: 28px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 14px;
+            background: Palette.surface-hover;
+            Icon { width: 15px; height: 15px; name: root.d.icon; }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Text { text: root.d.name; color: Palette.fg; font-size: 13px; font-weight: 600; overflow: elide; }
+            Text { text: root.d.kind; color: Palette.fg-dim; font-size: 11px; }
+        }
+        HorizontalLayout {
+            spacing: 14px;
+            if root.d.left >= 0: Level { label: "L"; pct: root.d.left; }
+            if root.d.right >= 0: Level { label: "R"; pct: root.d.right; }
+            if root.d.case >= 0: Level { label: "Case"; pct: root.d.case; }
+            if root.d.main >= 0 && root.d.left < 0 && root.d.right < 0: Level { pct: root.d.main; }
+            if root.d.main < 0 && root.d.left < 0 && root.d.right < 0 && root.d.case < 0: Text {
+                text: "No battery reading";
+                color: Palette.fg-dim;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
 export component DevicesView inherits VerticalLayout {
-    spacing: 8px;
+    spacing: 6px;
+    alignment: start;
     if DevState.entries.length == 0: Text {
         vertical-stretch: 1;
         text: DevState.supported ? "No Bluetooth devices connected." : "Devices aren't available on Windows yet.";
@@ -22,26 +92,5 @@ export component DevicesView inherits VerticalLayout {
         horizontal-alignment: center;
         vertical-alignment: center;
     }
-    if DevState.entries.length > 0: HorizontalLayout {
-        spacing: 10px;
-        alignment: center;
-        for d in DevState.entries: Card {
-            width: 150px;
-            height: 150px;
-            VerticalLayout {
-                padding: 14px;
-                spacing: 8px;
-                alignment: center;
-                HorizontalLayout { alignment: center; Icon { width: 34px; height: 34px; name: d.icon; } }
-                Text { text: d.name; color: Palette.fg; font-size: 12px; font-weight: 600; horizontal-alignment: center; overflow: elide; }
-                Text {
-                    text: d.battery;
-                    color: d.low ? Palette.red : Palette.green;
-                    font-size: 11px;
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
-                }
-            }
-        }
-    }
+    for d in DevState.entries: Row { d: d; }
 }

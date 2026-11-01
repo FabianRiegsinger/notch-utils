@@ -27,6 +27,8 @@ pub struct Awake {
     /// None = until turned off.
     until: Cell<Option<Instant>>,
     failed: Cell<bool>,
+    /// Last chosen duration in minutes (0 = until turned off), for the selected button.
+    chosen: Cell<i32>,
     tick: slint::Timer,
     windows: RefCell<Vec<slint::Weak<NotchWindow>>>,
 }
@@ -39,6 +41,7 @@ impl Awake {
             inhibitor: RefCell::default(),
             until: Cell::new(None),
             failed: Cell::new(false),
+            chosen: Cell::new(0),
             tick: slint::Timer::default(),
             windows: RefCell::default(),
         })
@@ -50,6 +53,9 @@ impl Awake {
 
     /// minutes: 0 = until turned off, negative = turn off.
     fn set(&self, minutes: i32) {
+        if minutes >= 0 {
+            self.chosen.set(minutes);
+        }
         if minutes < 0 {
             self.inhibitor.borrow_mut().take();
             self.tick.stop();
@@ -83,9 +89,9 @@ impl Awake {
         match (self.on(), self.until.get()) {
             (false, _) if self.failed.get() => "Couldn't keep the computer awake".into(),
             (false, _) => "Off".into(),
-            (true, None) => "On until you turn it off".into(),
+            (true, None) => "Until you turn it off".into(),
             (true, Some(u)) => format!(
-                "On · {} left",
+                "{} left",
                 remaining_text(u.saturating_duration_since(Instant::now()))
             ),
         }
@@ -93,10 +99,7 @@ impl Awake {
 
     fn sync(&self) {
         let (on, status) = (self.on(), self.status());
-        let mode = match self.until.get() {
-            None => 0,
-            Some(u) => (u.saturating_duration_since(Instant::now()).as_secs() > 15 * 60) as i32 + 1,
-        };
+        let mode = self.chosen.get();
         self.windows.borrow_mut().retain(|w| {
             let Some(ui) = w.upgrade() else { return false };
             let g = ui.global::<AwakeState>();

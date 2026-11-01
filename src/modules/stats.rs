@@ -186,6 +186,14 @@ impl Stats {
             d.down.scaled(net_max),
             d.up.scaled(net_max),
         ];
+        let paths: [SharedString; 3] = [
+            area_path(&hist[0]).into(),
+            area_path(&hist[1]).into(),
+            area_path(&hist[2]).into(),
+        ];
+        let mem_sub: SharedString = format!("of {}", format_bytes(total as f64)).into();
+        let mem_used: SharedString = format_bytes(used as f64).into();
+        let disk = tick.is_multiple_of(SLOW_EVERY).then(main_disk).flatten();
 
         let detail = detailed.then(|| {
             p.sys.refresh_processes(ProcessesToUpdate::All, true);
@@ -207,6 +215,16 @@ impl Stats {
             g.set_mem_hist(model(hist[1].clone()));
             g.set_down_hist(model(hist[2].clone()));
             g.set_up_hist(model(hist[3].clone()));
+            g.set_cpu_path(paths[0].clone());
+            g.set_mem_path(paths[1].clone());
+            g.set_net_path(paths[2].clone());
+            g.set_mem_used(mem_used.clone());
+            g.set_mem_sub(mem_sub.clone());
+            if let Some((free, total)) = disk {
+                g.set_disk_free(format_bytes(free as f64).into());
+                g.set_disk_sub(format!("free of {}", format_bytes(total as f64)).into());
+                g.set_disk_frac(1.0 - free as f32 / total.max(1) as f32);
+            }
             if let Some(dt) = &detail {
                 g.set_cores(model(dt.cores.clone()));
                 g.set_disks(model(dt.disks.clone()));
@@ -316,6 +334,36 @@ fn detail(p: &Probes) -> Detail {
     }
 }
 
+/// Filled area chart in a 60 x 100 viewbox, newest sample at the right edge.
+pub fn area_path(vals: &[f32]) -> String {
+    if vals.len() < 2 {
+        return String::new();
+    }
+    let x0 = 61.0 - vals.len() as f32;
+    let pts: Vec<String> = vals
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            format!(
+                "L {:.1} {:.1}",
+                x0 + i as f32,
+                100.0 - 92.0 * v.clamp(0.0, 1.0)
+            )
+        })
+        .collect();
+    format!("M {x0:.1} 100 {} L 60 100 Z", pts.join(" "))
+}
+
+/// (free, total) bytes of the system volume.
+fn main_disk() -> Option<(u64, u64)> {
+    let disks = Disks::new_with_refreshed_list().ok()?;
+    let d = disks
+        .iter()
+        .find(|d| d.mount_point() == std::path::Path::new("/"))
+        .or(disks.first())?;
+    Some((d.available_space(), d.total_space()))
+}
+
 fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
     Rc::new(VecModel::from(v)).into()
 }
@@ -382,6 +430,18 @@ mod tests {
         assert!(
             s.scaled(0.0).iter().all(|x| *x == 1.0),
             "zero max doesn't divide by zero"
+        );
+    }
+}
+
+#[cfg(test)]
+mod area_tests {
+    #[test]
+    fn area_path_spans_to_right_edge() {
+        assert_eq!(super::area_path(&[0.5]), "");
+        assert_eq!(
+            super::area_path(&[0.0, 1.0]),
+            "M 59.0 100 L 59.0 100.0 L 60.0 8.0 L 60 100 Z"
         );
     }
 }

@@ -31,9 +31,9 @@ export global CalState {
 
 component Dot inherits Rectangle {
     in property <color> tint;
-    width: 4px;
-    height: 4px;
-    border-radius: 2px;
+    width: 5px;
+    height: 5px;
+    border-radius: 2.5px;
     background: root.tint;
 }
 
@@ -42,28 +42,28 @@ export component WeekStrip inherits HorizontalLayout {
 
     for d in CalState.week: VerticalLayout {
         horizontal-stretch: 1;
-        spacing: 3px;
+        spacing: 4px;
         Text {
             text: d.label;
             color: d.today ? Palette.fg : Palette.fg-dim;
-            font-size: 9px;
+            font-size: 11px;
             font-weight: 600;
             horizontal-alignment: center;
         }
         HorizontalLayout {
             alignment: center;
             Rectangle {
-                width: 26px;
-                height: 26px;
-                border-radius: 13px;
+                width: 34px;
+                height: 34px;
+                border-radius: 17px;
                 background: d.today ? Palette.accent : transparent;
-                Text { text: d.day; color: Palette.fg; font-size: 14px; font-weight: 600; }
+                Text { text: d.day; color: Palette.fg; font-size: 19px; font-weight: 600; }
             }
         }
         HorizontalLayout {
             alignment: center;
-            spacing: 2px;
-            height: 4px;
+            spacing: 3px;
+            height: 5px;
             if d.dots > 0: Dot { tint: Palette.accent; }
             if d.dots > 1: Dot { tint: Palette.purple; }
             if d.dots > 2: Dot { tint: Palette.orange; }
