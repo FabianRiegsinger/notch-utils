@@ -26,6 +26,8 @@ pub struct Event {
     pub all_day: bool,
     pub title: String,
     pub location: String,
+    /// Video call link (Meet, Zoom, Teams, ...) for the Join button; empty if none.
+    pub link: String,
 }
 
 /// One property line: name, params (upper-cased keys), value.
@@ -73,6 +75,29 @@ fn parse_prop(line: &str) -> Option<Prop> {
         params,
         value: value.to_string(),
     })
+}
+
+/// First video-call URL in the event: Google's conference field, URL, location, description.
+fn meeting_link(get: impl Fn(&str) -> Option<String>) -> String {
+    const HOSTS: [&str; 6] = [
+        "meet.google.com",
+        "zoom.us",
+        "teams.microsoft.com",
+        "teams.live.com",
+        "webex.com",
+        "whereby.com",
+    ];
+    ["X-GOOGLE-CONFERENCE", "URL", "LOCATION", "DESCRIPTION"]
+        .iter()
+        .filter_map(|n| get(n))
+        .flat_map(|v| {
+            v.split(|c: char| c.is_whitespace() || matches!(c, '<' | '>' | '"' | ','))
+                .filter(|w| w.starts_with("https://"))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .find(|u| HOSTS.iter().any(|h| u.contains(h)))
+        .unwrap_or_default()
 }
 
 fn unescape(s: &str) -> String {
@@ -225,6 +250,7 @@ pub fn parse_ics(text: &str, from: DateTime<Local>, to: DateTime<Local>) -> Vec<
         let location = get("LOCATION")
             .map(|s| unescape(&s.value))
             .unwrap_or_default();
+        let link = meeting_link(|n| get(n).map(|p| unescape(&p.value)));
         let uid = get("UID").map(|u| u.value.clone()).unwrap_or_default();
         let make = |s: DateTime<Local>| Event {
             start: s,
@@ -232,6 +258,7 @@ pub fn parse_ics(text: &str, from: DateTime<Local>, to: DateTime<Local>) -> Vec<
             all_day,
             title: title.clone(),
             location: location.clone(),
+            link: link.clone(),
         };
 
         let rules: Vec<&Prop> = e
@@ -296,8 +323,11 @@ pub fn week(events: &[Event], today: NaiveDate) -> Vec<WeekDay> {
         .collect()
 }
 
-/// The running or next timed event: (title, "In 9 min · 09:50", location).
-pub fn next_event(events: &[Event], now: DateTime<Local>) -> Option<(String, String, String)> {
+/// The running or next timed event: (title, "In 9 min · 09:50", location, call link).
+pub fn next_event(
+    events: &[Event],
+    now: DateTime<Local>,
+) -> Option<(String, String, String, String)> {
     let e = events.iter().find(|e| !e.all_day && e.end > now)?;
     let at = e.start.format("%H:%M");
     let mins = (e.start - now).num_minutes();
@@ -314,7 +344,7 @@ pub fn next_event(events: &[Event], now: DateTime<Local>) -> Option<(String, Str
     } else {
         format!("{} · {at}", e.start.format("%A"))
     };
-    Some((e.title.clone(), when, e.location.clone()))
+    Some((e.title.clone(), when, e.location.clone(), e.link.clone()))
 }
 
 /// webcal:// is just https.
@@ -474,6 +504,7 @@ impl CalendarModule {
                 g.set_next_title(n.0.as_str().into());
                 g.set_next_when(n.1.as_str().into());
                 g.set_next_location(n.2.as_str().into());
+                g.set_next_link(n.3.as_str().into());
             }
             true
         });
@@ -491,6 +522,11 @@ impl Module for CalendarModule {
     }
 
     fn attach(&self, ui: &NotchWindow) {
+        ui.global::<CalState>().on_join(|link| {
+            if link.starts_with("https://") {
+                super::shelf::open(std::path::Path::new(link.as_str()));
+            }
+        });
         let me = self.me.clone();
         ui.global::<CalState>().on_refresh(move || {
             if let Some(m) = me.upgrade() {
@@ -667,6 +703,38 @@ END:VCALENDAR\r\n";
         assert_eq!(n.1, "Now · until 09:30");
         let n = next_event(&ev, at("2026-11-02 18:00")).unwrap();
         assert_eq!(n.1, "Monday · 14:00", "next Monday's weekly");
+    }
+
+    #[test]
+    fn meeting_links() {
+        let props = |m: &[(&str, &str)]| {
+            let m: Vec<(String, String)> = m
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            move |n: &str| m.iter().find(|(k, _)| k == n).map(|(_, v)| v.clone())
+        };
+        assert_eq!(
+            meeting_link(props(&[
+                ("LOCATION", "Room 4"),
+                (
+                    "DESCRIPTION",
+                    "Agenda https://example.com/doc Join: <https://meet.google.com/abc-defg-hij>"
+                )
+            ])),
+            "https://meet.google.com/abc-defg-hij"
+        );
+        assert_eq!(
+            meeting_link(props(&[(
+                "LOCATION",
+                "https://us02web.zoom.us/j/123?pwd=x"
+            )])),
+            "https://us02web.zoom.us/j/123?pwd=x"
+        );
+        assert_eq!(
+            meeting_link(props(&[("LOCATION", "https://example.com")])),
+            ""
+        );
     }
 
     #[test]

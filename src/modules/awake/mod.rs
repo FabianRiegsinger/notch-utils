@@ -29,6 +29,8 @@ pub struct Awake {
     failed: Cell<bool>,
     /// Last chosen duration in minutes (0 = until turned off), for the selected button.
     chosen: Cell<i32>,
+    /// Keep the display on too (else only the computer stays awake).
+    display: Cell<bool>,
     tick: slint::Timer,
     windows: RefCell<Vec<slint::Weak<NotchWindow>>>,
 }
@@ -42,6 +44,7 @@ impl Awake {
             until: Cell::new(None),
             failed: Cell::new(false),
             chosen: Cell::new(0),
+            display: Cell::new(true),
             tick: slint::Timer::default(),
             windows: RefCell::default(),
         })
@@ -61,7 +64,7 @@ impl Awake {
             self.tick.stop();
         } else {
             if !self.on() {
-                *self.inhibitor.borrow_mut() = Inhibitor::new();
+                *self.inhibitor.borrow_mut() = Inhibitor::new(self.display.get());
             }
             self.failed.set(!self.on());
             self.until.set(
@@ -85,6 +88,19 @@ impl Awake {
         self.sync();
     }
 
+    fn set_display(&self, display: bool) {
+        if self.display.replace(display) != display && self.on() {
+            // Swap the assertion; the deadline stays.
+            self.inhibitor.borrow_mut().take();
+            *self.inhibitor.borrow_mut() = Inhibitor::new(display);
+            self.failed.set(!self.on());
+            if !self.on() {
+                self.tick.stop();
+            }
+        }
+        self.sync();
+    }
+
     fn status(&self) -> String {
         match (self.on(), self.until.get()) {
             (false, _) if self.failed.get() => "Couldn't keep the computer awake".into(),
@@ -100,12 +116,14 @@ impl Awake {
     fn sync(&self) {
         let (on, status) = (self.on(), self.status());
         let mode = self.chosen.get();
+        let display = self.display.get();
         self.windows.borrow_mut().retain(|w| {
             let Some(ui) = w.upgrade() else { return false };
             let g = ui.global::<AwakeState>();
             g.set_on(on);
             g.set_status(status.as_str().into());
             g.set_mode(if on { mode } else { -1 });
+            g.set_display(display);
             true
         });
         (self.ctx.peek_changed)();
@@ -128,6 +146,20 @@ impl Module for Awake {
                 a.set(minutes)
             }
         });
+        let me = self.me.clone();
+        ui.global::<AwakeState>().on_set_display(move |d| {
+            if let Some(a) = me.upgrade() {
+                a.set_display(d)
+            }
+        });
+        ui.global::<AwakeState>().set_device(
+            if cfg!(target_os = "macos") {
+                "Mac"
+            } else {
+                "Computer"
+            }
+            .into(),
+        );
         self.windows.borrow_mut().push(ui.as_weak());
         self.sync();
     }

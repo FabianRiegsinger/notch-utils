@@ -1,4 +1,5 @@
-//! Prevent idle sleep (display stays on) while an `Inhibitor` lives. Dropping it releases.
+//! Prevent idle sleep while an `Inhibitor` lives; `display` also keeps the screen on.
+//! Dropping it releases.
 
 #[cfg(target_os = "macos")]
 mod imp {
@@ -19,9 +20,13 @@ mod imp {
     pub struct Inhibitor(u32);
 
     impl Inhibitor {
-        pub fn new() -> Option<Self> {
+        pub fn new(display: bool) -> Option<Self> {
             // NSString is toll-free bridged to CFString.
-            let kind = NSString::from_str("PreventUserIdleDisplaySleep");
+            let kind = NSString::from_str(if display {
+                "PreventUserIdleDisplaySleep"
+            } else {
+                "PreventUserIdleSystemSleep"
+            });
             let name = NSString::from_str("notch-utils Keep Awake");
             let mut id = 0u32;
             // SAFETY: valid CFString pointers for the call; 255 = kIOPMAssertionLevelOn.
@@ -56,17 +61,18 @@ mod imp {
     pub struct Inhibitor(Option<mpsc::Sender<()>>);
 
     impl Inhibitor {
-        pub fn new() -> Option<Self> {
+        pub fn new(display: bool) -> Option<Self> {
             let (tx, rx) = mpsc::channel::<()>();
+            let flags = if display {
+                ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED
+            } else {
+                ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+            };
             std::thread::Builder::new()
                 .name("keep-awake".into())
                 .spawn(move || {
                     // SAFETY: plain Win32 calls on this thread.
-                    unsafe {
-                        SetThreadExecutionState(
-                            ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED,
-                        )
-                    };
+                    unsafe { SetThreadExecutionState(flags) };
                     let _ = rx.recv(); // until the Inhibitor is dropped
                     unsafe { SetThreadExecutionState(ES_CONTINUOUS) };
                 })
@@ -91,10 +97,14 @@ mod imp {
     pub struct Inhibitor(Child);
 
     impl Inhibitor {
-        pub fn new() -> Option<Self> {
+        pub fn new(display: bool) -> Option<Self> {
             Command::new("systemd-inhibit")
                 .args([
-                    "--what=idle",
+                    if display {
+                        "--what=idle"
+                    } else {
+                        "--what=sleep"
+                    },
                     "--who=notch-utils",
                     "--why=Keep Awake",
                     "sleep",
@@ -134,7 +144,7 @@ mod tests {
     #[test]
     #[ignore]
     fn assertion_is_visible_and_released() {
-        let i = super::Inhibitor::new().expect("IOPMAssertionCreateWithName");
+        let i = super::Inhibitor::new(true).expect("IOPMAssertionCreateWithName");
         assert!(assertions().contains("notch-utils Keep Awake"));
         drop(i);
         assert!(!assertions().contains("notch-utils Keep Awake"));
