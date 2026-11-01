@@ -23,10 +23,7 @@ export global StatsState {
     in property <[LabeledValue]> temps;
     in property <[LabeledValue]> procs;
     in property <string> battery-text;
-    // Compact cards: area charts (60 x 100 viewbox paths), memory and system volume.
-    in property <string> cpu-path;
-    in property <string> mem-path;
-    in property <string> net-path;
+    // Compact cards: memory and system volume.
     in property <string> mem-used: "–";
     in property <string> mem-sub;
     in property <string> disk-free: "–";
@@ -45,7 +42,22 @@ export global StatsState {
     in property <bool> has-gpu;
     in property <string> gpu-num: "–";
     in property <string> gpu-sub;
-    in property <string> gpu-path;
+    in property <[float]> gpu-hist;
+}
+
+// Area chart from abutting columns, each with a bright top edge, filling from the right over
+// 60 slots (one per second). A Path keeps its viewbox's aspect ratio, so it can't stretch.
+component Chart inherits Rectangle {
+    in property <[float]> values;
+    HorizontalLayout {
+        Rectangle { horizontal-stretch: max(0, 60 - root.values.length); }
+        for v in root.values: Rectangle {
+            horizontal-stretch: 1;
+            property <length> top: self.height * (1 - 0.92 * clamp(v, 0, 1));
+            Rectangle { y: parent.top; height: parent.height - parent.top; background: Palette.fg.with-alpha(0.22); }
+            Rectangle { y: parent.top; height: 2px; background: Palette.fg.with-alpha(0.85); }
+        }
+    }
 }
 
 component Card inherits Rectangle {
@@ -56,25 +68,20 @@ component Card inherits Rectangle {
     in property <string> sub;
     // Small bars beside the value (CPU cores), 0..1 each.
     in property <[float]> bars;
-    // Area chart along the bottom edge (see area_path in stats.rs); empty = none.
-    in property <string> chart;
+    // Area chart along the bottom edge, 0..1 per sample, oldest first; fewer than 2 = none.
+    in property <[float]> chart;
     background: Palette.surface;
     border-radius: 14px;
     horizontal-stretch: 1;
     preferred-width: 100px;
     clip: true;
 
-    if root.chart != "": Path {
+    if root.chart.length > 1: Chart {
         x: 0;
-        y: parent.height - self.height + 1px;
+        y: parent.height - self.height;
         width: parent.width;
         height: parent.height * 0.4;
-        viewbox-width: 60;
-        viewbox-height: 100;
-        fill: Palette.fg.with-alpha(0.22);
-        stroke: Palette.fg.with-alpha(0.85);
-        stroke-width: 2px;
-        commands: root.chart;
+        values: root.chart;
     }
     VerticalLayout {
         padding: 14px;
@@ -147,10 +154,10 @@ component Rows inherits VerticalLayout {
 export component StatsView inherits VerticalLayout {
     if !StatsState.detailed: HorizontalLayout {
         spacing: 8px;
-        Card { icon: "cpu"; title: "CPU"; value: StatsState.cpu-num; unit: "%"; sub: StatsState.cpu-sub; bars: StatsState.cpu-bars; chart: StatsState.cpu-path; }
-        Card { icon: "memory"; title: "Memory"; value: StatsState.mem-num; unit: StatsState.mem-unit; sub: StatsState.mem-sub; chart: StatsState.mem-path; }
-        Card { icon: "network"; title: "Network"; value: StatsState.down-num; unit: StatsState.down-unit; sub: "↓ " + StatsState.down-text + " · ↑ " + StatsState.up-text; chart: StatsState.net-path; }
-        if StatsState.has-gpu: Card { icon: "gpu"; title: "GPU"; value: StatsState.gpu-num; unit: "%"; sub: StatsState.gpu-sub; chart: StatsState.gpu-path; }
+        Card { icon: "cpu"; title: "CPU"; value: StatsState.cpu-num; unit: "%"; sub: StatsState.cpu-sub; bars: StatsState.cpu-bars; chart: StatsState.cpu-hist; }
+        Card { icon: "memory"; title: "Memory"; value: StatsState.mem-num; unit: StatsState.mem-unit; sub: StatsState.mem-sub; chart: StatsState.mem-hist; }
+        Card { icon: "network"; title: "Network"; value: StatsState.down-num; unit: StatsState.down-unit; sub: "↓ " + StatsState.down-text + " · ↑ " + StatsState.up-text; chart: StatsState.down-hist; }
+        if StatsState.has-gpu: Card { icon: "gpu"; title: "GPU"; value: StatsState.gpu-num; unit: "%"; sub: StatsState.gpu-sub; chart: StatsState.gpu-hist; }
         Card {
             icon: "disk";
             title: "Disk";

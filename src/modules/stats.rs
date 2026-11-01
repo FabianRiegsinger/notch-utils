@@ -239,7 +239,7 @@ impl Stats {
             d.gpu.push(g);
         }
         let gpu_peak = d.gpu.0.iter().copied().fold(0.0, f32::max);
-        let gpu_path: SharedString = area_path(&d.gpu.scaled(100.0)).into();
+        let gpu_hist = d.gpu.scaled(100.0);
         // One shared scale so up and down are comparable.
         let net_max = d.down.0.iter().chain(&d.up.0).copied().fold(1.0, f32::max);
 
@@ -257,11 +257,6 @@ impl Stats {
             d.mem.scaled(1.0),
             d.down.scaled(net_max),
             d.up.scaled(net_max),
-        ];
-        let paths: [SharedString; 3] = [
-            area_path(&hist[0]).into(),
-            area_path(&hist[1]).into(),
-            area_path(&hist[2]).into(),
         ];
         let mem_frac = used as f32 / total as f32;
         let mem_sub: SharedString =
@@ -291,9 +286,6 @@ impl Stats {
             g.set_mem_hist(model(hist[1].clone()));
             g.set_down_hist(model(hist[2].clone()));
             g.set_up_hist(model(hist[3].clone()));
-            g.set_cpu_path(paths[0].clone());
-            g.set_mem_path(paths[1].clone());
-            g.set_net_path(paths[2].clone());
             g.set_mem_used(mem_used.clone());
             g.set_mem_sub(mem_sub.clone());
             g.set_mem_num(mem_num.clone());
@@ -307,7 +299,7 @@ impl Stats {
             if let Some(v) = gpu {
                 g.set_gpu_num(format!("{v:.0}").into());
                 g.set_gpu_sub(format!("Peak {gpu_peak:.0}%").into());
-                g.set_gpu_path(gpu_path.clone());
+                g.set_gpu_hist(model(gpu_hist.clone()));
             }
             if let Some((free, total)) = disk {
                 let (n, u) = split_unit(&format_bytes(free as f64));
@@ -426,27 +418,6 @@ fn detail(p: &Probes) -> Detail {
     }
 }
 
-/// Filled area chart in a 60 x 100 viewbox, oldest sample at the left edge, newest at the
-/// right; a short history is stretched over the full width.
-pub fn area_path(vals: &[f32]) -> String {
-    if vals.len() < 2 {
-        return String::new();
-    }
-    let step = 60.0 / (vals.len() - 1) as f32;
-    let pts: Vec<String> = vals
-        .iter()
-        .enumerate()
-        .map(|(i, v)| {
-            format!(
-                "L {:.1} {:.1}",
-                i as f32 * step,
-                100.0 - 92.0 * v.clamp(0.0, 1.0)
-            )
-        })
-        .collect();
-    format!("M 0 100 {} L 60 100 Z", pts.join(" "))
-}
-
 /// (free, total) bytes of the system volume.
 fn main_disk() -> Option<(u64, u64)> {
     let disks = Disks::new_with_refreshed_list().ok()?;
@@ -541,17 +512,5 @@ mod card_tests {
         let s = r#"| "PerformanceStatistics" = {"In use system memory"=1,"Device Utilization %"=25,"Renderer Utilization %"=20}"#;
         assert_eq!(parse_gpu(s), Some(25.0));
         assert_eq!(parse_gpu("nothing"), None);
-    }
-}
-
-#[cfg(test)]
-mod area_tests {
-    #[test]
-    fn area_path_spans_full_width() {
-        assert_eq!(super::area_path(&[0.5]), "");
-        assert_eq!(
-            super::area_path(&[0.0, 1.0]),
-            "M 0 100 L 0.0 100.0 L 60.0 8.0 L 60 100 Z"
-        );
     }
 }
