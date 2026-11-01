@@ -15,7 +15,7 @@ use objc2_foundation::{
     NSKeyValueObservingOptions, NSNumber, NSObject, NSObjectNSKeyValueObserverRegistration,
     NSString, NSValue,
 };
-use objc2_quartz_core::{kCAGravityTopLeft, CALayer, CATransaction};
+use objc2_quartz_core::{kCAGravityTop, CALayer, CATransaction};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawWindowHandle};
 
 use std::ffi::c_void;
@@ -223,7 +223,10 @@ impl<D: HasDisplayHandle, W: HasWindowHandle> SurfaceInterface<D, W> for CGImpl<
         //
         // TODO(madsmtm): Consider changing this to `kCAGravityResize` to stretch the content if
         // resized to something that doesn't fit, see #177.
-        layer.setContentsGravity(unsafe { kCAGravityTopLeft });
+        // notch-utils patch: top-center instead of top-left. The notch window grows and shrinks
+        // symmetrically around its center; with top-left the previous (smaller) frame showed at
+        // the left edge for one frame on every resize (a visible twitch).
+        layer.setContentsGravity(unsafe { kCAGravityTop });
 
         // Initialize color space here, to reduce work later on.
         let color_space = CGColorSpace::new_device_rgb().unwrap();
