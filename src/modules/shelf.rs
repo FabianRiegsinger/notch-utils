@@ -182,7 +182,7 @@ fn spawn_thumbnail(id: u64, path: PathBuf) {
         });
 }
 
-fn reveal(p: &Path) {
+pub(super) fn reveal(p: &Path) {
     #[cfg(target_os = "macos")]
     let r = std::process::Command::new("open").arg("-R").arg(p).spawn();
     #[cfg(target_os = "windows")]
@@ -198,7 +198,7 @@ fn reveal(p: &Path) {
     }
 }
 
-fn open(p: &Path) {
+pub(super) fn open(p: &Path) {
     #[cfg(target_os = "macos")]
     let r = std::process::Command::new("open").arg(p).spawn();
     #[cfg(target_os = "windows")]

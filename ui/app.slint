@@ -11,8 +11,9 @@ import { TermView, TermState, TermLine, TermRun } from "modules/terminal.slint";
 import { HomeView, HomeState } from "modules/home.slint";
 import { MusicView, MusicState } from "modules/music.slint";
 import { AwakeView, AwakeState } from "modules/awake.slint";
+import { DownloadsView, DlState, DlEntry } from "modules/downloads.slint";
 
-export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState }
+export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState, DlState, DlEntry }
 
 export enum NotchState { collapsed, peek, expanded }
 
@@ -29,6 +30,7 @@ component ModuleView {
     if root.id == "home": HomeView { }
     if root.id == "music": MusicView { }
     if root.id == "awake": AwakeView { }
+    if root.id == "downloads": DownloadsView { }
     if root.id == "timer": TimerView { }
     if root.id == "calc": CalcView { }
     if root.id == "stats": StatsView { }
@@ -74,6 +76,7 @@ component Activity inherits Rectangle {
         : root.icon == "ai" ? Palette.purple
         : root.icon == "music" ? #ff375f
         : root.icon == "awake" ? Palette.yellow
+        : root.icon == "download" ? Palette.teal
         : root.icon == "mic" ? Palette.orange
         : root.icon == "camera" ? Palette.green
         : root.icon == "moon" ? Palette.purple

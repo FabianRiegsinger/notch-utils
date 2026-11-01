@@ -146,8 +146,16 @@ mod tests {
     #[test]
     #[ignore]
     fn probes_answer() {
-        let (caps, mic, cam) = (super::caps_lock(), super::mic_in_use(), super::camera_in_use());
-        println!("caps={caps:?} mic={mic:?} camera={cam:?} focus={:?} online={:?}", super::focus_on(), super::super::online());
+        let (caps, mic, cam) = (
+            super::caps_lock(),
+            super::mic_in_use(),
+            super::camera_in_use(),
+        );
+        println!(
+            "caps={caps:?} mic={mic:?} camera={cam:?} focus={:?} online={:?}",
+            super::focus_on(),
+            super::super::online()
+        );
         assert!(caps.is_some() && mic.is_some() && cam.is_some());
     }
 }

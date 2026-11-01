@@ -6,6 +6,7 @@ mod awake;
 mod calc;
 mod calendar;
 mod clipboard;
+mod downloads;
 mod hints;
 mod home;
 mod hud;
@@ -113,6 +114,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         stats::Stats::new(ctx.clone()),
         clipboard::ClipboardModule::new(ctx.clone()),
         shelf::Shelf::new(ctx.clone()),
+        downloads::Downloads::new(ctx.clone()),
         hud::HudModule::new(ctx.clone()),
         hints::Hints::new(ctx.clone()),
         ai::AiUsage::new(ctx.clone()),
