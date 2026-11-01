@@ -69,6 +69,7 @@ fn icon_for(kind: &str) -> &'static str {
     }
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn pct(v: Option<&serde_json::Value>) -> Option<u8> {
     v?.as_str()?
         .trim()
@@ -79,6 +80,7 @@ fn pct(v: Option<&serde_json::Value>) -> Option<u8> {
 }
 
 /// Connected devices from `system_profiler SPBluetoothDataType -json`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn parse_system_profiler(json: &str) -> Vec<Device> {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else {
         return vec![];
