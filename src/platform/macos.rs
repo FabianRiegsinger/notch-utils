@@ -12,9 +12,10 @@ pub fn setup_window(window: &winit::window::Window) {
         return;
     };
     ns_window.setLevel(NSStatusWindowLevel + 1);
-    // No `Stationary`: the notch slides with the menu bar when switching Spaces.
+    // Not on all Spaces: the window belongs to the current Space, so it slides away with it
+    // when switching; `follow_active_space` brings it to the new Space afterwards.
     ns_window.setCollectionBehavior(
-        NSWindowCollectionBehavior::CanJoinAllSpaces
+        NSWindowCollectionBehavior::MoveToActiveSpace
             | NSWindowCollectionBehavior::FullScreenAuxiliary
             | NSWindowCollectionBehavior::IgnoresCycle,
     );
@@ -134,6 +135,15 @@ pub fn cursor_screen(_window: &winit::window::Window) -> Option<usize> {
 
 /// Bring the app forward so a normal window (settings) gets focus: the app runs as an
 /// accessory app without a Dock icon, which macOS never activates on its own.
+/// Move the window onto the active Space if a Space switch left it behind.
+pub fn follow_active_space(window: &winit::window::Window) {
+    if let Some(w) = ns_window(window)
+        && !w.isOnActiveSpace()
+    {
+        w.orderFrontRegardless();
+    }
+}
+
 pub fn activate_app() {
     if let Some(mtm) = MainThreadMarker::new() {
         objc2_app_kit::NSApplication::sharedApplication(mtm).activate();

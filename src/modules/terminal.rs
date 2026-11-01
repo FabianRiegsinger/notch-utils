@@ -3,7 +3,7 @@
 //! show and keeps running while the notch is closed. Rendering is rows of style runs.
 
 use super::{Ctx, KeyInput, Module};
-use crate::{NotchWindow, TermLine, TermRun, TermState};
+use crate::{NotchWindow, TermLine, TermPane, TermRun, TermState};
 use alacritty_terminal::event::{Event as TermEvent, EventListener, WindowSize};
 use alacritty_terminal::event_loop::{EventLoop, EventLoopSender, Msg};
 use alacritty_terminal::grid::{Dimensions, Scroll};
@@ -12,7 +12,7 @@ use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::{Config as TermConfig, Term, TermMode};
 use alacritty_terminal::tty;
 use alacritty_terminal::vte::ansi::{Color as VtColor, CursorShape, NamedColor, Rgb};
-use slint::{Color, ComponentHandle, VecModel};
+use slint::{Color, ComponentHandle, Model, VecModel};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -263,31 +263,115 @@ impl Drop for Session {
     }
 }
 
+/// Most stacked terminals.
+const MAX_PANES: usize = 4;
+
+struct Pane {
+    session: Option<Session>,
+    size: (usize, usize),
+}
+
+type Snapshot = (Vec<Vec<TermRun>>, Option<(i32, i32)>);
+
+/// Visible rows as style runs, plus the cursor (column, row) if shown.
+fn snapshot(s: &Session) -> Snapshot {
+    let term = s.term.lock();
+    let content = term.renderable_content();
+    let offset = content.display_offset as i32;
+    let rows = term.screen_lines();
+    let mut lines: Vec<Vec<TermRun>> = vec![vec![]; rows];
+    let mut last: Option<RunEnd> = None;
+    for cell in content.display_iter {
+        let row = (cell.point.line.0 + offset) as usize;
+        let col = cell.point.column.0;
+        if row >= rows
+            || cell
+                .flags
+                .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
+        {
+            continue;
+        }
+        let dim = cell.flags.contains(Flags::DIM);
+        let (mut fg, mut bg) = (
+            resolve(cell.fg, content.colors, dim).unwrap_or(FG),
+            resolve(cell.bg, content.colors, false),
+        );
+        if cell.flags.contains(Flags::INVERSE) {
+            (fg, bg) = (bg.unwrap_or((0, 0, 0)), Some(fg));
+        }
+        let ch = if cell.flags.contains(Flags::HIDDEN) {
+            ' '
+        } else {
+            cell.c
+        };
+        let bold = cell.flags.contains(Flags::BOLD);
+        let wide = cell.flags.contains(Flags::WIDE_CHAR);
+        let line = &mut lines[row];
+        // Extend the previous run when the style matches and the cell is adjacent.
+        let style = Style { fg, bg, bold };
+        match (last, line.last_mut()) {
+            (Some(end), Some(run))
+                if end.row == row && end.next_col == col && end.style == style && !wide =>
+            {
+                let mut t = run.text.to_string();
+                t.push(ch);
+                run.text = t.into();
+            }
+            _ => line.push(TermRun {
+                col: col as i32,
+                text: ch.to_string().into(),
+                fg: Color::from_rgb_u8(fg.0, fg.1, fg.2),
+                bg: bg.map_or(Color::default(), |b| Color::from_rgb_u8(b.0, b.1, b.2)),
+                has_bg: bg.is_some(),
+                bold,
+            }),
+        }
+        last = Some(RunEnd {
+            row,
+            next_col: col + if wide { 2 } else { 1 },
+            style,
+        });
+    }
+    // Drop runs that are only default-background spaces: fewer items to lay out.
+    for line in &mut lines {
+        line.retain(|r| r.has_bg || !r.text.trim().is_empty());
+    }
+    let c = content.cursor;
+    let cursor = (c.shape != CursorShape::Hidden && content.mode.contains(TermMode::SHOW_CURSOR))
+        .then(|| (c.point.column.0 as i32, c.point.line.0 + offset));
+    (lines, cursor)
+}
+
 pub struct Terminal {
     me: Weak<Terminal>,
-    session: RefCell<Option<Session>>,
-    size: Cell<(usize, usize)>,
+    ctx: Ctx,
+    /// Stacked terminals, top to bottom; keys go to `focus`.
+    panes: RefCell<Vec<Pane>>,
+    focus: Cell<usize>,
     cell: Cell<(f32, f32)>,
     visible: Cell<bool>,
+    pinned: Cell<bool>,
     windows: RefCell<Vec<slint::Weak<NotchWindow>>>,
 }
 
 impl Terminal {
-    pub fn new(_ctx: Ctx) -> Rc<Self> {
+    pub fn new(ctx: Ctx) -> Rc<Self> {
         let t = Rc::new_cyclic(|me| Self {
             me: me.clone(),
-            session: RefCell::default(),
-            size: Cell::new((80, 15)),
+            ctx,
+            panes: RefCell::default(),
+            focus: Cell::new(0),
             cell: Cell::new((7.0, 15.0)),
             visible: Cell::new(false),
+            pinned: Cell::new(false),
             windows: RefCell::default(),
         });
         INSTANCE.with(|i| *i.borrow_mut() = Rc::downgrade(&t));
         t
     }
 
-    fn window_size(&self) -> WindowSize {
-        let ((cols, rows), (cw, ch)) = (self.size.get(), self.cell.get());
+    fn window_size(&self, (cols, rows): (usize, usize)) -> WindowSize {
+        let (cw, ch) = self.cell.get();
         WindowSize {
             num_lines: rows as u16,
             num_cols: cols as u16,
@@ -296,21 +380,24 @@ impl Terminal {
         }
     }
 
-    fn start(&self) {
+    fn start(&self, size: (usize, usize)) -> Option<Session> {
         tty::setup_env();
         let opts = tty::Options {
             working_directory: directories::BaseDirs::new().map(|d| d.home_dir().to_path_buf()),
             ..Default::default()
         };
-        let (cols, rows) = self.size.get();
+        let (cols, rows) = size;
         let listener = Listener {
             sender: Arc::default(),
             pending: Arc::default(),
             exited: Arc::default(),
         };
-        let pty = match tty::new(&opts, self.window_size(), 0) {
+        let pty = match tty::new(&opts, self.window_size(size), 0) {
             Ok(p) => p,
-            Err(e) => return log::error!("terminal: could not start shell: {e}"),
+            Err(e) => {
+                log::error!("terminal: could not start shell: {e}");
+                return None;
+            }
         };
         let config = TermConfig {
             scrolling_history: SCROLLBACK,
@@ -323,25 +410,34 @@ impl Terminal {
         )));
         let ev = match EventLoop::new(term.clone(), listener.clone(), pty, false, false) {
             Ok(ev) => ev,
-            Err(e) => return log::error!("terminal: event loop: {e}"),
+            Err(e) => {
+                log::error!("terminal: event loop: {e}");
+                return None;
+            }
         };
         let tx = ev.channel();
         if let Ok(mut s) = listener.sender.lock() {
             *s = Some(tx.clone());
         }
         ev.spawn();
-        *self.session.borrow_mut() = Some(Session {
+        Some(Session {
             term,
             tx,
             exited: listener.exited,
-        });
+        })
+    }
+
+    /// Run `f` on the focused pane's session.
+    fn with_focused<R>(&self, f: impl FnOnce(&Session) -> R) -> Option<R> {
+        let panes = self.panes.borrow();
+        panes.get(self.focus.get())?.session.as_ref().map(f)
     }
 
     fn write(&self, bytes: Vec<u8>) {
-        if let Some(s) = &*self.session.borrow() {
+        self.with_focused(|s| {
             s.term.lock().scroll_display(Scroll::Bottom);
             let _ = s.tx.send(Msg::Input(Cow::Owned(bytes)));
-        }
+        });
     }
 
     fn paste(&self) {
@@ -350,10 +446,8 @@ impl Terminal {
             return;
         };
         let bracketed = self
-            .session
-            .borrow()
-            .as_ref()
-            .is_some_and(|s| s.term.lock().mode().contains(TermMode::BRACKETED_PASTE));
+            .with_focused(|s| s.term.lock().mode().contains(TermMode::BRACKETED_PASTE))
+            .unwrap_or(false);
         // Strip ESC so pasted text can't end bracketed paste early or inject sequences.
         let text = text
             .replace('\x1b', "")
@@ -367,17 +461,65 @@ impl Terminal {
         self.write(bytes.into_bytes());
     }
 
-    fn resize(&self, w: f32, h: f32) {
+    fn resize(&self, i: usize, w: f32, h: f32) {
         let (cw, ch) = self.cell.get();
-        let cols = ((w / cw).floor() as usize).max(10);
-        let rows = ((h / ch).floor() as usize).max(3);
-        if self.size.replace((cols, rows)) == (cols, rows) {
-            return;
+        let size = (
+            ((w / cw).floor() as usize).max(10),
+            ((h / ch).floor() as usize).max(2),
+        );
+        {
+            let mut panes = self.panes.borrow_mut();
+            let Some(p) = panes.get_mut(i) else { return };
+            if p.size == size {
+                return;
+            }
+            p.size = size;
+            if let Some(s) = &p.session {
+                s.term.lock().resize(Size {
+                    cols: size.0,
+                    rows: size.1,
+                });
+                let _ = s.tx.send(Msg::Resize(self.window_size(size)));
+            }
         }
-        if let Some(s) = &*self.session.borrow() {
-            s.term.lock().resize(Size { cols, rows });
-            let _ = s.tx.send(Msg::Resize(self.window_size()));
+        self.render();
+    }
+
+    /// Stack another terminal below and focus it.
+    fn add(&self) {
+        let size = {
+            let panes = self.panes.borrow();
+            if panes.len() >= MAX_PANES {
+                return;
+            }
+            panes.last().map_or((80, 15), |p| p.size)
+        };
+        let session = self.start(size);
+        let mut panes = self.panes.borrow_mut();
+        panes.push(Pane { session, size });
+        self.focus.set(panes.len() - 1);
+        drop(panes);
+        self.render();
+    }
+
+    /// Close a stacked terminal (its shell ends); the last one stays.
+    fn close(&self, i: usize) {
+        {
+            let mut panes = self.panes.borrow_mut();
+            if panes.len() <= 1 || i >= panes.len() {
+                return;
+            }
+            panes.remove(i);
+            let f = self.focus.get();
+            self.focus
+                .set(if f > i { f - 1 } else { f.min(panes.len() - 1) });
         }
+        self.render();
+    }
+
+    fn set_pinned(&self, on: bool) {
+        self.pinned.set(on);
+        (self.ctx.pin)(on);
         self.render();
     }
 
@@ -385,94 +527,43 @@ impl Terminal {
         if !self.visible.get() {
             return;
         }
-        let session = self.session.borrow();
-        let Some(s) = session.as_ref() else { return };
-        let exited = s.exited.load(Ordering::Acquire);
-        let (lines, cursor) = {
-            let term = s.term.lock();
-            let content = term.renderable_content();
-            let offset = content.display_offset as i32;
-            let rows = term.screen_lines();
-            let mut lines: Vec<Vec<TermRun>> = vec![vec![]; rows];
-            let mut last: Option<RunEnd> = None;
-            for cell in content.display_iter {
-                let row = (cell.point.line.0 + offset) as usize;
-                let col = cell.point.column.0;
-                if row >= rows
-                    || cell
-                        .flags
-                        .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
-                {
-                    continue;
-                }
-                let dim = cell.flags.contains(Flags::DIM);
-                let (mut fg, mut bg) = (
-                    resolve(cell.fg, content.colors, dim).unwrap_or(FG),
-                    resolve(cell.bg, content.colors, false),
-                );
-                if cell.flags.contains(Flags::INVERSE) {
-                    (fg, bg) = (bg.unwrap_or((0, 0, 0)), Some(fg));
-                }
-                let ch = if cell.flags.contains(Flags::HIDDEN) {
-                    ' '
-                } else {
-                    cell.c
+        let panes: Vec<TermPane> = self
+            .panes
+            .borrow()
+            .iter()
+            .map(|p| {
+                let Some(s) = &p.session else {
+                    return TermPane {
+                        exited: true,
+                        ..Default::default()
+                    };
                 };
-                let bold = cell.flags.contains(Flags::BOLD);
-                let wide = cell.flags.contains(Flags::WIDE_CHAR);
-                let line = &mut lines[row];
-                // Extend the previous run when the style matches and the cell is adjacent.
-                let style = Style { fg, bg, bold };
-                match (last, line.last_mut()) {
-                    (Some(end), Some(run))
-                        if end.row == row && end.next_col == col && end.style == style && !wide =>
-                    {
-                        let mut t = run.text.to_string();
-                        t.push(ch);
-                        run.text = t.into();
-                    }
-                    _ => line.push(TermRun {
-                        col: col as i32,
-                        text: ch.to_string().into(),
-                        fg: Color::from_rgb_u8(fg.0, fg.1, fg.2),
-                        bg: bg.map_or(Color::default(), |b| Color::from_rgb_u8(b.0, b.1, b.2)),
-                        has_bg: bg.is_some(),
-                        bold,
-                    }),
+                let (lines, cursor) = snapshot(s);
+                let lines: Vec<TermLine> = lines
+                    .into_iter()
+                    .map(|runs| TermLine {
+                        runs: Rc::new(VecModel::from(runs)).into(),
+                    })
+                    .collect();
+                let (col, row) = cursor.unwrap_or((0, 0));
+                TermPane {
+                    lines: Rc::new(VecModel::from(lines)).into(),
+                    cursor_col: col,
+                    cursor_row: row,
+                    cursor_visible: cursor.is_some(),
+                    exited: s.exited.load(Ordering::Acquire),
                 }
-                last = Some(RunEnd {
-                    row,
-                    next_col: col + if wide { 2 } else { 1 },
-                    style,
-                });
-            }
-            // Drop runs that are only default-background spaces: fewer items to lay out.
-            for line in &mut lines {
-                line.retain(|r| r.has_bg || !r.text.trim().is_empty());
-            }
-            let c = content.cursor;
-            let cursor = (c.shape != CursorShape::Hidden
-                && content.mode.contains(TermMode::SHOW_CURSOR))
-            .then(|| (c.point.column.0 as i32, c.point.line.0 + offset));
-            (lines, cursor)
-        };
-        let model: Vec<TermLine> = lines
-            .into_iter()
-            .map(|runs| TermLine {
-                runs: Rc::new(VecModel::from(runs)).into(),
             })
             .collect();
-        let model = Rc::new(VecModel::from(model));
+        let model = Rc::new(VecModel::from(panes));
+        let (focus, pinned) = (self.focus.get() as i32, self.pinned.get());
         self.windows.borrow_mut().retain(|w| {
             let Some(ui) = w.upgrade() else { return false };
             let g = ui.global::<TermState>();
-            g.set_lines(model.clone().into());
-            g.set_cursor_visible(cursor.is_some());
-            if let Some((c, r)) = cursor {
-                g.set_cursor_col(c);
-                g.set_cursor_row(r);
-            }
-            g.set_exited(exited);
+            g.set_panes(model.clone().into());
+            g.set_focused(focus);
+            g.set_pinned(pinned);
+            g.set_can_add(model.row_count() < MAX_PANES);
             true
         });
     }
@@ -500,21 +591,51 @@ impl Module for Terminal {
             .into(),
         );
         let me = self.me.clone();
-        g.on_resized(move |w, h, cw, ch| {
+        g.on_resized(move |i, w, h, cw, ch| {
             if let Some(t) = me.upgrade() {
                 if cw > 0.0 && ch > 0.0 {
                     t.cell.set((cw, ch));
                 }
-                t.resize(w, h);
+                t.resize(i.max(0) as usize, w, h);
             }
         });
         let me = self.me.clone();
-        g.on_scroll(move |lines| {
+        g.on_scroll(move |i, lines| {
             if let Some(t) = me.upgrade() {
-                if let Some(s) = &*t.session.borrow() {
+                if let Some(s) = t
+                    .panes
+                    .borrow()
+                    .get(i.max(0) as usize)
+                    .and_then(|p| p.session.as_ref())
+                {
                     s.term.lock().scroll_display(Scroll::Delta(lines));
                 }
                 t.render();
+            }
+        });
+        let me = self.me.clone();
+        g.on_focus(move |i| {
+            if let Some(t) = me.upgrade() {
+                t.focus.set(i.max(0) as usize);
+                t.render();
+            }
+        });
+        let me = self.me.clone();
+        g.on_add(move || {
+            if let Some(t) = me.upgrade() {
+                t.add()
+            }
+        });
+        let me = self.me.clone();
+        g.on_close(move |i| {
+            if let Some(t) = me.upgrade() {
+                t.close(i.max(0) as usize)
+            }
+        });
+        let me = self.me.clone();
+        g.on_toggle_pin(move || {
+            if let Some(t) = me.upgrade() {
+                t.set_pinned(!t.pinned.get())
             }
         });
         self.windows.borrow_mut().push(ui.as_weak());
@@ -522,27 +643,29 @@ impl Module for Terminal {
 
     fn on_show(&self) {
         self.visible.set(true);
-        if self.session.borrow().is_none() {
-            self.start();
+        if self.panes.borrow().is_empty() {
+            self.add();
         }
         self.render();
     }
 
     fn on_hide(&self) {
         self.visible.set(false);
+        // The pin keeps the terminal open; once it's hidden (Escape, another tab) it's released.
+        if self.pinned.get() {
+            self.pinned.set(false);
+            (self.ctx.pin)(false);
+        }
     }
 
     fn key(&self, k: &KeyInput) -> bool {
-        // Restart after the shell exited.
-        let exited = self
-            .session
-            .borrow()
-            .as_ref()
-            .is_some_and(|s| s.exited.load(Ordering::Acquire));
-        if exited {
+        // Restart the focused shell after it exited.
+        if self.with_focused(|s| s.exited.load(Ordering::Acquire)) == Some(true) {
             if k.named && k.key == "Enter" {
-                self.session.borrow_mut().take();
-                self.start();
+                let i = self.focus.get();
+                let size = self.panes.borrow()[i].size;
+                let session = self.start(size);
+                self.panes.borrow_mut()[i].session = session;
                 self.render();
             }
             return true;
@@ -557,10 +680,8 @@ impl Module for Terminal {
             return true;
         }
         let app_cursor = self
-            .session
-            .borrow()
-            .as_ref()
-            .is_some_and(|s| s.term.lock().mode().contains(TermMode::APP_CURSOR));
+            .with_focused(|s| s.term.lock().mode().contains(TermMode::APP_CURSOR))
+            .unwrap_or(false);
         match encode_key(k, app_cursor) {
             Some(bytes) => {
                 self.write(bytes);

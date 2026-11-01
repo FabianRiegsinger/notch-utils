@@ -21,12 +21,15 @@ export global CalState {
     in property <string> next-title;
     in property <string> next-when;
     in property <string> next-location;
+    // Video call link of the next event; empty = no Join button.
+    in property <string> next-link;
     in property <[CalEvent]> today;
     in property <[CalEvent]> tomorrow;
     in property <bool> configured;
     in property <bool> loading;
     in property <string> error;
     callback refresh();
+    callback join(string);
 }
 
 component Dot inherits Rectangle {

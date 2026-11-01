@@ -12,8 +12,8 @@ use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 /// Matches the `animate width, height` duration in app.slint, plus a small margin.
-/// After the 300 ms body animation in app.slint.
-const SHRINK_AFTER: Duration = Duration::from_millis(320);
+/// After the body animation in app.slint (450 ms for peek).
+const SHRINK_AFTER: Duration = Duration::from_millis(480);
 /// Collapsed size on screens without a hardware notch.
 const PILL: (f32, f32) = (160.0, 24.0);
 /// Concave corners that flow into the menu bar (must match the window's extra width).
@@ -29,10 +29,15 @@ pub struct Notch {
     has_activity: Cell<bool>,
     /// Pointer over the window (OS enter/leave), so a HUD doesn't collapse under it.
     hovered: Cell<bool>,
+    /// Pinned open (terminal): leaving or losing focus doesn't collapse.
+    pinned: Cell<bool>,
     /// `None` = main screen; `Some(i)` = platform screen index.
     screen: Cell<Option<usize>>,
     leave_timer: slint::Timer,
     shrink_timer: slint::Timer,
+    /// shortcut: polls for a Space switch (4x/s) instead of observing
+    /// NSWorkspaceActiveSpaceDidChangeNotification.
+    space_timer: slint::Timer,
     /// Called after every state or tab change, so the app can update module visibility.
     on_change: Rc<dyn Fn()>,
     /// Offered every key press while expanded; true = a module consumed it.
@@ -58,9 +63,11 @@ impl Notch {
             state: Cell::new(State::Collapsed),
             has_activity: Cell::new(false),
             hovered: Cell::new(false),
+            pinned: Cell::new(false),
             screen: Cell::new(None),
             leave_timer: slint::Timer::default(),
             shrink_timer: slint::Timer::default(),
+            space_timer: slint::Timer::default(),
             on_change,
             on_key,
             modifiers: Cell::new(Default::default()),
@@ -143,6 +150,19 @@ impl Notch {
                     n.apply_appearance();
                     let s = n.state.get();
                     n.apply(s, s);
+                    if cfg!(target_os = "macos") {
+                        let ui = n.ui.as_weak();
+                        n.space_timer.start(
+                            slint::TimerMode::Repeated,
+                            Duration::from_millis(250),
+                            move || {
+                                if let Some(ui) = ui.upgrade() {
+                                    ui.window()
+                                        .with_winit_window(crate::platform::follow_active_space);
+                                }
+                            },
+                        );
+                    }
                 }),
                 Err(e) => log::error!("notch window was not created: {e}"),
             }
@@ -185,12 +205,24 @@ impl Notch {
             .flatten()
     }
 
+    pub fn set_pinned(&self, on: bool) {
+        self.pinned.set(on);
+    }
+
     pub fn handle(&self, event: Event) {
+        let pinned = self.pinned.get() || self.ui.get_pinned();
+        if pinned && matches!(event, Event::LeaveTimeout | Event::FocusLost) {
+            return;
+        }
         let old = self.state.get();
         let new = state::next(old, event, self.cfg.borrow().behavior.open_mode);
         if new != old {
             log::debug!("{old:?} --{event:?}--> {new:?}");
             self.state.set(new);
+            if new == State::Collapsed {
+                // The pin button holds the panel open only until it's closed (Esc, toggle).
+                self.ui.set_pinned(false);
+            }
             self.apply(old, new);
             (self.on_change)();
         }
@@ -404,10 +436,12 @@ fn parse_hex(s: &str) -> Option<Color> {
 
 /// Size the window to `w`x`h` logical px and center it at the top of the screen.
 fn place(ui: &NotchWindow, screen: Option<usize>, w: f32, h: f32) {
-    // Tell Slint first: it resizes the OS window back to its own idea of the size otherwise.
-    ui.window().set_size(slint::LogicalSize::new(w, h));
+    // Size and position in one OS call first: resizing alone keeps the bottom-left corner and
+    // shows one frame with the notch off-center (jitter). Then tell Slint the same size, or it
+    // resizes the window back to its own idea of the size.
     ui.window()
         .with_winit_window(|win| crate::platform::place_top_center(win, screen, w, h));
+    ui.window().set_size(slint::LogicalSize::new(w, h));
 }
 
 fn with(weak: &Weak<Notch>, f: impl FnOnce(&Notch)) {

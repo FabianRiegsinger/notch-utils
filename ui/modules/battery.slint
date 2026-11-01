@@ -1,0 +1,117 @@
+import { Palette, Icon } from "../components.slint";
+
+export global BatteryState {
+    in property <bool> present;
+    in property <int> percent;
+    in property <bool> charging;
+    in property <bool> plugged;
+    // "Charging", "On battery", "Fully charged", "Not charging"
+    in property <string> status;
+    // "Until full" / "Time left"
+    in property <string> time-label: "Until full";
+    in property <string> time: "–";
+    in property <string> power;
+    in property <bool> has-low-power;
+    in property <bool> low-power;
+    callback low-power-clicked();
+}
+
+component InfoRow inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <string> value;
+    in property <bool> chevron;
+    callback clicked();
+    height: 44px;
+    border-radius: 12px;
+    background: root.chevron && touch.has-hover ? Palette.surface-hover : Palette.surface;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 12px;
+        Icon { width: 17px; height: 17px; y: (parent.height - 17px) / 2; name: root.icon; tint: Palette.fg-dim; }
+        Text { text: root.label; color: Palette.fg-dim; font-size: 14px; vertical-alignment: center; horizontal-stretch: 1; }
+        Text { text: root.value; color: Palette.fg; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+        if root.chevron: Icon { width: 12px; height: 12px; y: (parent.height - 12px) / 2; name: "chevron"; tint: Palette.fg-dim; }
+    }
+    touch := TouchArea {
+        enabled: root.chevron;
+        mouse-cursor: root.chevron ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component BatteryView inherits HorizontalLayout {
+    property <bool> low: !BatteryState.plugged && BatteryState.percent <= 20;
+    property <color> tint: root.low ? Palette.red : BatteryState.low-power ? Palette.yellow : Palette.green;
+    spacing: 24px;
+    padding-left: 12px;
+    padding-right: 4px;
+
+    if !BatteryState.present: Text {
+        horizontal-stretch: 1;
+        text: "No battery found";
+        color: Palette.fg-dim;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    if BatteryState.present: HorizontalLayout {
+        spacing: 26px;
+        horizontal-stretch: 1;
+        alignment: start;
+        // Battery glyph: outline, fill to the charge level, bolt while plugged in.
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                spacing: 2px;
+                Rectangle {
+                    width: 96px;
+                    height: 50px;
+                    border-radius: 13px;
+                    border-width: 2.5px;
+                    border-color: Palette.fg-dim;
+                    Rectangle {
+                        x: 5px;
+                        y: 5px;
+                        height: parent.height - 10px;
+                        width: (parent.width - 10px) * clamp(BatteryState.percent / 100, 0.04, 1);
+                        border-radius: 8px;
+                        background: root.tint;
+                        animate width { duration: 400ms; }
+                    }
+                    if BatteryState.plugged: Icon { width: 26px; height: 26px; name: "bolt"; tint: #fff; }
+                }
+                Rectangle {
+                    width: 4px;
+                    height: 16px;
+                    y: (parent.height - 16px) / 2;
+                    border-radius: 2px;
+                    background: Palette.fg-dim;
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 0px;
+            Text { text: BatteryState.percent + "%"; color: Palette.fg; font-size: 54px; font-weight: 700; }
+            Text { text: BatteryState.status; color: root.tint; font-size: 16px; font-weight: 600; }
+        }
+    }
+
+    if BatteryState.present: VerticalLayout {
+        width: 300px;
+        alignment: center;
+        spacing: 8px;
+        InfoRow { icon: "clock"; label: BatteryState.time-label; value: BatteryState.time; }
+        InfoRow { icon: "plug"; label: "Power"; value: BatteryState.power; }
+        if BatteryState.has-low-power: InfoRow {
+            icon: "leaf";
+            label: "Low Power Mode";
+            value: BatteryState.low-power ? "On" : "Off";
+            chevron: true;
+            clicked => { BatteryState.low-power-clicked(); }
+        }
+    }
+}

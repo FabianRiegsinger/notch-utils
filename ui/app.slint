@@ -7,15 +7,18 @@ import { ClipboardView, ClipState, ClipEntry } from "modules/clipboard.slint";
 import { ShelfView, ShelfState, ShelfEntry } from "modules/shelf.slint";
 import { AiView, AiState } from "modules/ai.slint";
 import { CalendarView, CalState, CalEvent, CalDay } from "modules/calendar.slint";
-import { TermView, TermState, TermLine, TermRun } from "modules/terminal.slint";
+import { TermView, TermState, TermLine, TermRun, TermPane } from "modules/terminal.slint";
 import { HomeView, HomeState } from "modules/home.slint";
 import { MusicView, MusicState } from "modules/music.slint";
 import { AwakeView, AwakeState } from "modules/awake.slint";
 import { DownloadsView, DlState, DlEntry } from "modules/downloads.slint";
 import { DevicesView, DevState, DevEntry } from "modules/devices.slint";
 import { MirrorView, MirrorState } from "modules/mirror.slint";
+import { BatteryView, BatteryState } from "modules/battery.slint";
+import { NotesView, NotesState, NoteRow } from "modules/notes.slint";
+import { ColorView, ColorState } from "modules/color.slint";
 
-export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState, DlState, DlEntry, DevState, DevEntry, MirrorState }
+export { Palette, TimerState, SettingsWindow, ModuleEntry, CalcState, StatsState, LabeledValue, ClipState, ClipEntry, ShelfState, ShelfEntry, AiState, CalState, CalEvent, TermState, TermLine, TermRun, HomeState, CalDay, ModuleSet, MusicState, AwakeState, DlState, DlEntry, DevState, DevEntry, MirrorState, TermPane, BatteryState, NotesState, NoteRow, ColorState }
 
 export enum NotchState { collapsed, peek, expanded }
 
@@ -43,27 +46,36 @@ component ModuleView {
     if root.id == "ai": AiView { }
     if root.id == "calendar": CalendarView { }
     if root.id == "terminal": TermView { }
+    if root.id == "battery": BatteryView { }
+    if root.id == "notes": NotesView { }
+    if root.id == "color": ColorView { }
 }
 
 component TabIcon inherits Rectangle {
     in property <ModuleTab> tab;
     in property <bool> active;
+    in property <length> size: 28px;
     callback select(int);
-    width: 38px;
-    height: 38px;
-    border-radius: 19px;
+    // Hover in/out with the icon's center x in window coordinates (drives the shared tooltip).
+    callback hint(bool, string, length);
+    width: root.size;
+    height: root.size;
+    border-radius: root.size / 2;
     background: root.active ? Palette.surface-hover : touch.has-hover ? Palette.surface : transparent;
     animate background { duration: 150ms; }
     accessible-role: AccessibleRole.tab;
     accessible-label: root.tab.title;
     accessible-action-default => { root.select(root.tab.index); }
     Icon {
-        width: 30px;
-        height: 30px;
+        width: 15px;
+        height: 15px;
         name: root.tab.id;
         tint: root.active ? Palette.fg : Palette.fg-dim;
     }
-    touch := TouchArea { clicked => { root.select(root.tab.index); } }
+    touch := TouchArea {
+        clicked => { root.select(root.tab.index); }
+        changed has-hover => { root.hint(self.has-hover, root.tab.title, root.absolute-position.x + root.width / 2); }
+    }
 }
 
 // Live activity beside the notch: colored icon left of the camera, value right of it.
@@ -191,6 +203,8 @@ export component NotchWindow inherits Window {
     in property <[ModuleTab]> tabs-right;
     in property <bool> grid;
     in-out property <int> active-tab;
+    // Pinned open: leaving or losing focus doesn't collapse (Rust releases it on collapse).
+    in-out property <bool> pinned;
 
     callback clicked();
     callback tab-changed(int);
@@ -199,14 +213,36 @@ export component NotchWindow inherits Window {
     // Animated body size: the outline and the content both follow it.
     property <length> body-w: root.shape-width;
     property <length> body-h: root.shape-height;
-    animate body-w, body-h { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+    // Peek eases in slower and softer than opening; ease-out-quint without overshoot.
+    property <duration> anim: root.state == NotchState.peek ? 450ms : 320ms;
+    animate body-w, body-h { duration: root.anim; easing: cubic-bezier(0.22, 1, 0.36, 1); }
     property <bool> closed: root.state == NotchState.collapsed;
     // Collapsed: the hardware notch's small top flares and bottom corners (MacBook Pro).
     property <length> radius: root.open ? 28px : root.closed ? 8px : min(root.body-h / 2, 12px);
     property <length> flare: root.closed ? 4px : root.shoulder;
-    animate radius, flare { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+    animate radius, flare { duration: root.anim; easing: cubic-bezier(0.22, 1, 0.36, 1); }
     // Height of the top band holding the tab icons.
-    property <length> band: max(root.top-inset, 42px);
+    property <length> band: max(root.top-inset, 32px);
+    // Tab icons shrink to fit beside the camera, keeping `edge` free at the body's sides. The right
+    // side also holds the pin. Uses the target width, so icons don't resize while the body animates.
+    property <length> edge: 16px;
+    property <int> per-side: max(root.tabs-left.length, root.tabs-right.length + 1);
+    property <length> tab-size: min(28px,
+        ((root.shape-width - root.camera-width) / 2 - 12px - root.edge - (root.per-side - 1) * 4px) / root.per-side);
+
+    // Tooltip for the band icons; tip-x is the icon's center in body coordinates.
+    property <bool> tip-on;
+    property <string> tip-text;
+    property <length> tip-x;
+    function hint(on: bool, text: string, x: length) {
+        if on {
+            root.tip-text = text;
+            root.tip-x = x - body.absolute-position.x;
+            root.tip-on = true;
+        } else if root.tip-text == text {
+            root.tip-on = false;
+        }
+    }
 
     function select(i: int) {
         root.active-tab = i;
@@ -265,6 +301,9 @@ export component NotchWindow inherits Window {
         }
 
         if root.state == NotchState.peek: Text {
+            opacity: 0;
+            init => { self.opacity = 1; }
+            animate opacity { duration: 220ms; delay: 180ms; easing: ease-out; }
             y: root.top-inset;
             height: parent.height - root.top-inset;
             width: parent.width;
@@ -284,24 +323,49 @@ export component NotchWindow inherits Window {
             // Tab icons in the camera band, left and right of the notch.
             if root.modules.length > 1: HorizontalLayout {
                 x: parent.width / 2 - root.camera-width / 2 - 12px - self.preferred-width;
-                y: (root.band - 38px) / 2;
-                height: 38px;
+                y: (root.band - root.tab-size) / 2;
+                height: root.tab-size;
                 spacing: 4px;
                 for t in root.tabs-left: TabIcon {
                     tab: t;
                     active: t.index == root.active-tab;
+                    size: root.tab-size;
                     select(i) => { root.select(i); }
+                    hint(on, text, x) => { root.hint(on, text, x); }
                 }
             }
             if root.modules.length > 1: HorizontalLayout {
                 x: parent.width / 2 + root.camera-width / 2 + 12px;
-                y: (root.band - 38px) / 2;
-                height: 38px;
+                y: (root.band - root.tab-size) / 2;
+                height: root.tab-size;
                 spacing: 4px;
                 for t in root.tabs-right: TabIcon {
                     tab: t;
                     active: t.index == root.active-tab;
+                    size: root.tab-size;
                     select(i) => { root.select(i); }
+                    hint(on, text, x) => { root.hint(on, text, x); }
+                }
+            }
+
+            Rectangle {
+                x: parent.width - root.edge - self.width;
+                y: (root.band - self.height) / 2;
+                width: root.tab-size;
+                height: root.tab-size;
+                border-radius: self.width / 2;
+                background: root.pinned || pin-touch.has-hover ? Palette.surface-hover : transparent;
+                animate background { duration: 150ms; }
+                accessible-role: button;
+                accessible-label: root.pinned ? "Unpin" : "Pin open";
+                accessible-action-default => { root.pinned = !root.pinned; }
+                Icon { width: 15px; height: 15px; name: "pin"; tint: root.pinned ? Palette.accent : Palette.fg-dim; }
+                pin-touch := TouchArea {
+                    clicked => { root.pinned = !root.pinned; }
+                    changed has-hover => {
+                        root.hint(self.has-hover, root.pinned ? "Unpin" : "Pin open",
+                            parent.absolute-position.x + parent.width / 2);
+                    }
                 }
             }
 
@@ -336,6 +400,29 @@ export component NotchWindow inherits Window {
                         }
                     }
                 }
+            }
+
+            tip := Rectangle {
+                width: label.preferred-width + 16px;
+                height: 22px;
+                x: clamp(root.tip-x - self.width / 2, 8px, parent.width - self.width - 8px);
+                y: root.band + 2px;
+                border-radius: 6px;
+                background: Palette.surface-hover;
+                opacity: 0;
+                label := Text {
+                    text: root.tip-text;
+                    color: Palette.fg;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                }
+                states [
+                    // Shows after a short hover delay, hides at once.
+                    shown when root.tip-on: {
+                        opacity: 1;
+                        in { animate opacity { delay: 450ms; duration: 120ms; } }
+                    }
+                ]
             }
         }
     }

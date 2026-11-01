@@ -34,6 +34,63 @@ impl Series {
     }
 }
 
+/// "11.4 GB" -> ("11.4", "GB"): the number is drawn large, the unit small.
+fn split_unit(s: &str) -> (SharedString, SharedString) {
+    match s.rsplit_once(' ') {
+        Some((n, u)) => (n.into(), u.into()),
+        None => (s.into(), SharedString::new()),
+    }
+}
+
+/// Memory pressure from the used fraction (a portable stand-in for the OS's own signal).
+fn pressure(frac: f32) -> &'static str {
+    match frac {
+        f if f < 0.85 => "Normal",
+        f if f < 0.95 => "Elevated",
+        _ => "High",
+    }
+}
+
+/// GPU busy percent, where the OS exposes it without privileges.
+#[cfg(target_os = "macos")]
+fn gpu_usage() -> Option<f32> {
+    // shortcut: spawns ioreg once a second while the stats view is open (~10 ms); move to IOKit
+    // calls if it shows up in profiles.
+    let out = std::process::Command::new("ioreg")
+        .args(["-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"])
+        .output()
+        .ok()?;
+    parse_gpu(&String::from_utf8_lossy(&out.stdout))
+}
+
+#[cfg(target_os = "linux")]
+fn gpu_usage() -> Option<f32> {
+    // AMD and some Intel drivers; NVIDIA needs nvidia-smi and is skipped.
+    (0..4).find_map(|i| {
+        std::fs::read_to_string(format!("/sys/class/drm/card{i}/device/gpu_busy_percent"))
+            .ok()?
+            .trim()
+            .parse()
+            .ok()
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn gpu_usage() -> Option<f32> {
+    None
+}
+
+/// `"Device Utilization %"=25` in ioreg's IOAccelerator PerformanceStatistics.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn parse_gpu(ioreg: &str) -> Option<f32> {
+    let key = "\"Device Utilization %\"=";
+    let rest = &ioreg[ioreg.find(key)? + key.len()..];
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
+    rest[..end].parse().ok()
+}
+
 pub fn format_bytes(b: f64) -> String {
     const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
     let mut v = b;
@@ -104,6 +161,7 @@ struct Data {
     mem: Series,
     down: Series,
     up: Series,
+    gpu: Series,
 }
 
 pub struct Stats {
@@ -161,6 +219,15 @@ impl Stats {
         });
         let (down, up) = (rx as f64 / secs, tx as f64 / secs);
         let cpu = p.sys.global_cpu_usage();
+        let core_use: Vec<f32> = p.sys.cpus().iter().map(|c| c.usage() / 100.0).collect();
+        let load = System::load_average().map_or(0.0, |l| l.one);
+        let cpu_sub: SharedString = if load > 0.0 {
+            format!("{} cores · load {load:.1}", core_use.len())
+        } else {
+            format!("{} cores", core_use.len())
+        }
+        .into();
+        let gpu = gpu_usage();
         let (used, total) = (p.sys.used_memory(), p.sys.total_memory().max(1));
 
         let mut d = self.data.borrow_mut();
@@ -168,6 +235,11 @@ impl Stats {
         d.mem.push(used as f32 / total as f32);
         d.down.push(down as f32);
         d.up.push(up as f32);
+        if let Some(g) = gpu {
+            d.gpu.push(g);
+        }
+        let gpu_peak = d.gpu.0.iter().copied().fold(0.0, f32::max);
+        let gpu_path: SharedString = area_path(&d.gpu.scaled(100.0)).into();
         // One shared scale so up and down are comparable.
         let net_max = d.down.0.iter().chain(&d.up.0).copied().fold(1.0, f32::max);
 
@@ -191,8 +263,12 @@ impl Stats {
             area_path(&hist[1]).into(),
             area_path(&hist[2]).into(),
         ];
-        let mem_sub: SharedString = format!("of {}", format_bytes(total as f64)).into();
+        let mem_frac = used as f32 / total as f32;
+        let mem_sub: SharedString =
+            format!("of {} · {}", format_bytes(total as f64), pressure(mem_frac)).into();
         let mem_used: SharedString = format_bytes(used as f64).into();
+        let (mem_num, mem_unit) = split_unit(&mem_used);
+        let (down_num, down_unit) = split_unit(&down_text);
         let disk = tick.is_multiple_of(SLOW_EVERY).then(main_disk).flatten();
 
         let detail = detailed.then(|| {
@@ -220,7 +296,23 @@ impl Stats {
             g.set_net_path(paths[2].clone());
             g.set_mem_used(mem_used.clone());
             g.set_mem_sub(mem_sub.clone());
+            g.set_mem_num(mem_num.clone());
+            g.set_mem_unit(mem_unit.clone());
+            g.set_down_num(down_num.clone());
+            g.set_down_unit(down_unit.clone());
+            g.set_cpu_num(format!("{cpu:.0}").into());
+            g.set_cpu_sub(cpu_sub.clone());
+            g.set_cpu_bars(model(core_use.clone()));
+            g.set_has_gpu(gpu.is_some());
+            if let Some(v) = gpu {
+                g.set_gpu_num(format!("{v:.0}").into());
+                g.set_gpu_sub(format!("Peak {gpu_peak:.0}%").into());
+                g.set_gpu_path(gpu_path.clone());
+            }
             if let Some((free, total)) = disk {
+                let (n, u) = split_unit(&format_bytes(free as f64));
+                g.set_disk_num(n);
+                g.set_disk_unit(u);
                 g.set_disk_free(format_bytes(free as f64).into());
                 g.set_disk_sub(format!("free of {}", format_bytes(total as f64)).into());
                 g.set_disk_frac(1.0 - free as f32 / total.max(1) as f32);
@@ -334,24 +426,25 @@ fn detail(p: &Probes) -> Detail {
     }
 }
 
-/// Filled area chart in a 60 x 100 viewbox, newest sample at the right edge.
+/// Filled area chart in a 60 x 100 viewbox, oldest sample at the left edge, newest at the
+/// right; a short history is stretched over the full width.
 pub fn area_path(vals: &[f32]) -> String {
     if vals.len() < 2 {
         return String::new();
     }
-    let x0 = 61.0 - vals.len() as f32;
+    let step = 60.0 / (vals.len() - 1) as f32;
     let pts: Vec<String> = vals
         .iter()
         .enumerate()
         .map(|(i, v)| {
             format!(
                 "L {:.1} {:.1}",
-                x0 + i as f32,
+                i as f32 * step,
                 100.0 - 92.0 * v.clamp(0.0, 1.0)
             )
         })
         .collect();
-    format!("M {x0:.1} 100 {} L 60 100 Z", pts.join(" "))
+    format!("M 0 100 {} L 60 100 Z", pts.join(" "))
 }
 
 /// (free, total) bytes of the system volume.
@@ -435,13 +528,30 @@ mod tests {
 }
 
 #[cfg(test)]
+mod card_tests {
+    use super::*;
+
+    #[test]
+    fn units_pressure_gpu() {
+        assert_eq!(split_unit("11.4 GB"), ("11.4".into(), "GB".into()));
+        assert_eq!(split_unit("1.9 MB/s"), ("1.9".into(), "MB/s".into()));
+        assert_eq!(pressure(0.5), "Normal");
+        assert_eq!(pressure(0.9), "Elevated");
+        assert_eq!(pressure(0.99), "High");
+        let s = r#"| "PerformanceStatistics" = {"In use system memory"=1,"Device Utilization %"=25,"Renderer Utilization %"=20}"#;
+        assert_eq!(parse_gpu(s), Some(25.0));
+        assert_eq!(parse_gpu("nothing"), None);
+    }
+}
+
+#[cfg(test)]
 mod area_tests {
     #[test]
-    fn area_path_spans_to_right_edge() {
+    fn area_path_spans_full_width() {
         assert_eq!(super::area_path(&[0.5]), "");
         assert_eq!(
             super::area_path(&[0.0, 1.0]),
-            "M 59.0 100 L 59.0 100.0 L 60.0 8.0 L 60 100 Z"
+            "M 0 100 L 0.0 100.0 L 60.0 8.0 L 60 100 Z"
         );
     }
 }

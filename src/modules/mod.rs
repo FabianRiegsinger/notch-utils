@@ -3,9 +3,11 @@
 
 mod ai;
 mod awake;
+mod battery;
 mod calc;
 mod calendar;
 mod clipboard;
+mod color;
 mod devices;
 mod downloads;
 mod hints;
@@ -13,6 +15,7 @@ mod home;
 mod hud;
 mod mirror;
 mod music;
+mod notes;
 mod shelf;
 mod stats;
 mod terminal;
@@ -33,6 +36,8 @@ pub struct Ctx {
     pub collapse: Rc<dyn Fn()>,
     /// Flash a short HUD in the peek area (volume, battery).
     pub hud: Rc<dyn Fn(Hud)>,
+    /// Keep the notch open when the pointer leaves or another app gets focus (terminal pin).
+    pub pin: Rc<dyn Fn(bool)>,
 }
 
 /// A key press: either typed text ("a", "+", "ü") or a named key ("Enter", "ArrowUp", "F5").
@@ -124,6 +129,9 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         ai::AiUsage::new(ctx.clone()),
         awake::Awake::new(ctx.clone()),
         calendar::CalendarModule::new(ctx.clone()),
+        battery::Battery::new(ctx.clone()),
+        notes::Notes::new(ctx.clone()),
+        color::ColorPicker::new(ctx.clone()),
         terminal::Terminal::new(ctx),
     ]
 }
