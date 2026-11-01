@@ -210,7 +210,8 @@ impl Notch {
     }
 
     pub fn handle(&self, event: Event) {
-        if self.pinned.get() && matches!(event, Event::LeaveTimeout | Event::FocusLost) {
+        let pinned = self.pinned.get() || self.ui.get_pinned();
+        if pinned && matches!(event, Event::LeaveTimeout | Event::FocusLost) {
             return;
         }
         let old = self.state.get();
@@ -218,6 +219,10 @@ impl Notch {
         if new != old {
             log::debug!("{old:?} --{event:?}--> {new:?}");
             self.state.set(new);
+            if new == State::Collapsed {
+                // The pin button holds the panel open only until it's closed (Esc, toggle).
+                self.ui.set_pinned(false);
+            }
             self.apply(old, new);
             (self.on_change)();
         }
