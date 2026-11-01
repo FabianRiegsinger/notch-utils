@@ -76,6 +76,9 @@ settings and shows the error in the settings window.
 
 Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modules one by one.
 
+- **Now Playing**: what's playing in any app (macOS: system media session, with Music/Spotify
+  via AppleScript as fallback; Windows: system media controls; Linux: `playerctl`), with cover,
+  progress and controls. macOS asks once for permission to control Music/Spotify.
 - **Home**: dashboard with the timer, this week with your next event, battery, Claude usage
   and CPU/RAM.
 - **Timer**: countdown and stopwatch; shows in the peek while running, pops the notch

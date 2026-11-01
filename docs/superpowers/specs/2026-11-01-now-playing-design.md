@@ -7,8 +7,10 @@ Date: 2026-11-01. Status: user chose the recommendations; branch `now-playing`.
   processes, so a small native library (`native/nowplaying.m`, built by build.rs with clang,
   embedded in the binary) is loaded into Apple's signed `/usr/bin/perl` (the approach of
   "mediaremote-adapter"). `perl … stream` prints one JSON line per change; `perl … command` sends
-  play/pause/next/previous. Covers every app incl. browsers. If Apple closes the gap the module
-  shows "unavailable".
+  play/pause/next/previous. Covers every app incl. browsers.
+- **macOS fallback:** while the bridge has no track (blocked by macOS, exited or idle), Music and
+  Spotify are queried via AppleScript every 2 s — only when already running (no app launch).
+  Commands go to the source of the current track. Spotify covers via artwork URL; Music: none.
 - **Windows:** GlobalSystemMediaTransportControls (WinRT) on a background thread.
 - **Linux:** `playerctl --follow` subprocess (MPRIS); commands via `playerctl`.
 
