@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 330" width="1000" height="330" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c1a46"/>
+      <stop offset="1" stop-color="#5a2a78"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8e8e9a"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="330" rx="18" fill="#0c0c12"/>
+
+  <!-- 1: collapsed with a live activity -->
+  <g transform="translate(10 20)">
+    <rect width="290" height="180" rx="14" fill="url(#wall)"/>
+    <path d="M0 14 Q0 0 14 0 H276 Q290 0 290 14 V16 H0 Z" fill="#16143a"/>
+    <path d="M 98 0 H 192 V 10 Q 192 18 184 18 H 106 Q 98 18 98 10 Z" fill="#000"/>
+    <circle cx="111" cy="9" r="5" fill="none" stroke="#ff9f0a" stroke-width="2"/>
+    <text x="180" y="13" fill="#ff9f0a" font-size="9" font-weight="700" text-anchor="end">4:59</text>
+    <text x="145" y="215" fill="#fff" font-size="17" font-weight="700" text-anchor="middle">At a glance</text>
+    <text x="145" y="238" fill="#a1a1aa" font-size="13" text-anchor="middle">Live activities sit beside the camera:</text>
+    <text x="145" y="256" fill="#a1a1aa" font-size="13" text-anchor="middle">a timer, a call in 5 min, music, battery.</text>
+  </g>
+
+  <line x1="310" y1="110" x2="350" y2="110" stroke="#8e8e9a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="330" y="98" fill="#8e8e9a" font-size="12" text-anchor="middle">hover</text>
+
+  <!-- 2: peek -->
+  <g transform="translate(355 20)">
+    <rect width="290" height="180" rx="14" fill="url(#wall)"/>
+    <path d="M0 14 Q0 0 14 0 H276 Q290 0 290 14 V16 H0 Z" fill="#16143a"/>
+    <path d="M 60 0 H 230 V 30 Q 230 42 218 42 H 72 Q 60 42 60 30 Z" fill="#000"/>
+    <circle cx="80" cy="25" r="6" fill="none" stroke="#ff9f0a" stroke-width="2"/>
+    <text x="145" y="30" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Timer · 04:59</text>
+    <text x="145" y="215" fill="#fff" font-size="17" font-weight="700" text-anchor="middle">Peek</text>
+    <text x="145" y="238" fill="#a1a1aa" font-size="13" text-anchor="middle">Hover and it eases open just enough</text>
+    <text x="145" y="256" fill="#a1a1aa" font-size="13" text-anchor="middle">to tell you what's going on.</text>
+  </g>
+
+  <line x1="655" y1="110" x2="695" y2="110" stroke="#8e8e9a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="675" y="98" fill="#8e8e9a" font-size="12" text-anchor="middle">click</text>
+
+  <!-- 3: open -->
+  <g transform="translate(700 20)">
+    <rect width="290" height="180" rx="14" fill="url(#wall)"/>
+    <path d="M0 14 Q0 0 14 0 H276 Q290 0 290 14 V16 H0 Z" fill="#16143a"/>
+    <path d="M 14 0 H 276 V 116 Q 276 134 258 134 H 32 Q 14 134 14 116 Z" fill="#000"/>
+    <g fill="#5c5c66">
+      <circle cx="40" cy="10" r="4" fill="#d4d4d8"/><circle cx="54" cy="10" r="3"/><circle cx="66" cy="10" r="3"/><circle cx="78" cy="10" r="3"/><circle cx="90" cy="10" r="3"/>
+      <circle cx="200" cy="10" r="3"/><circle cx="212" cy="10" r="3"/><circle cx="224" cy="10" r="3"/><circle cx="236" cy="10" r="3"/><circle cx="248" cy="10" r="3"/>
+    </g>
+    <g>
+      <rect x="26" y="26" width="74" height="96" rx="9" fill="#1c1c1e"/>
+      <rect x="108" y="26" width="74" height="96" rx="9" fill="#1c1c1e"/>
+      <rect x="190" y="26" width="74" height="96" rx="9" fill="#1c1c1e"/>
+      <text x="34" y="44" fill="#a1a1aa" font-size="8">CPU</text>
+      <text x="34" y="62" fill="#fff" font-size="15" font-weight="700">12%</text>
+      <text x="116" y="44" fill="#a1a1aa" font-size="8">Memory</text>
+      <text x="116" y="62" fill="#fff" font-size="15" font-weight="700">23 GB</text>
+      <text x="198" y="44" fill="#a1a1aa" font-size="8">Network</text>
+      <text x="198" y="62" fill="#fff" font-size="15" font-weight="700">1.9 MB/s</text>
+      <path d="M26 112 L36 106 L46 109 L56 100 L66 104 L76 96 L86 102 L100 98 V 122 H 26 Z" fill="#ffffff38" stroke="#ffffffd0" stroke-width="1.2"/>
+      <path d="M108 104 L182 101 V 122 H 108 Z" fill="#ffffff38" stroke="#ffffffd0" stroke-width="1.2"/>
+      <path d="M190 118 L204 116 L214 104 L222 114 L232 94 L242 112 L252 108 L264 116 V 122 H 190 Z" fill="#ffffff38" stroke="#ffffffd0" stroke-width="1.2"/>
+    </g>
+    <text x="145" y="215" fill="#fff" font-size="17" font-weight="700" text-anchor="middle">Open</text>
+    <text x="145" y="238" fill="#a1a1aa" font-size="13" text-anchor="middle">Click for the full panel: 17 tools,</text>
+    <text x="145" y="256" fill="#a1a1aa" font-size="13" text-anchor="middle">one tab each. Move away and it's gone.</text>
+  </g>
+
+  <text x="500" y="312" fill="#71717a" font-size="12" text-anchor="middle">Animations ease in ~0.3 s · ~0% CPU while idle · stays out of your way</text>
+</svg>

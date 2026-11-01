@@ -1,15 +1,60 @@
 # notch-utils
 
-Interactive notch with lots of utility. A black notch at the top center of the screen
-expands into a panel of small tools. Runs on macOS, Windows and Linux; written in Rust
-with [Slint](https://slint.dev).
+<p align="center">
+  <img src="docs/images/hero.png" alt="notch-utils: the notch opened into a system stats panel with CPU, memory, network, GPU and disk cards" width="100%">
+</p>
 
-- macOS: sits exactly over the hardware notch, flowing into the menu bar (or a pill on
-  Macs/displays without one)
-- Live activities beside the notch: a running timer, volume and charging, an event about to
-  start or a Claude limit show left and right of the camera without opening anything
-- Windows / Linux: a pill at the top center that expands like the notch
-- ~0% CPU while idle, ~35 MB memory (software renderer; GPU renderer optional)
+<p align="center"><b>Your notch, finally useful.</b><br>
+A timer, Now Playing, system stats, notes, a terminal and a dozen more tools live in the black
+notch at the top of your screen. Hover to peek, click to open, move away and it's gone.</p>
+
+<p align="center">macOS · Windows · Linux · written in Rust with <a href="https://slint.dev">Slint</a> · ~0% CPU while idle</p>
+
+---
+
+## How it feels
+
+<p align="center">
+  <img src="docs/images/flow.svg" alt="Three states: collapsed with a live timer beside the camera, a peek on hover, and the full panel on click" width="100%">
+</p>
+
+The notch is already there, eating pixels. notch-utils turns it into the most convenient spot on
+your screen:
+
+- **It's always one gesture away.** No window to find, no Dock icon, no Cmd+Tab. Hover the
+  notch and it eases open in about 0.3 s; click and you get the full panel.
+- **It tells you things before you ask.** A running timer, a meeting about to start, the song
+  that's playing, a Claude limit or a low battery show *beside* the camera, while the notch stays
+  closed.
+- **It disappears when you're done.** Move the mouse away or press Esc and it's a plain notch
+  again. Nothing lingers on screen.
+- **It feels native.** On a MacBook it sits exactly over the hardware notch, flowing into the
+  menu bar with the same corners and shoulders. On Windows,
+  Linux and external displays it's a black pill at the top center.
+- **It's light.** About 35 MB of memory and ~0% CPU while idle. Every module measures only while
+  you're looking at it.
+
+## A tour
+
+| | |
+|:---:|:---:|
+| <img src="docs/images/stats.png" alt="Stats tab"><br>**Stats**: CPU, memory, network, GPU and disk with live charts | <img src="docs/images/battery.png" alt="Battery tab"><br>**Battery**: charge, time left, power source, Low Power Mode |
+| <img src="docs/images/notes.png" alt="Notes tab"><br>**Notes**: jot it down without leaving what you're doing | <img src="docs/images/color.png" alt="Color picker tab"><br>**Color Picker**: pick any pixel, copy HEX, RGB or HSL |
+| <img src="docs/images/awake.png" alt="Keep Awake tab"><br>**Keep Awake**: for 15 minutes, 5 hours or until you say so | <img src="docs/images/timer.png" alt="Timer tab"><br>**Timer**: countdown or stopwatch, visible while closed |
+| <img src="docs/images/downloads.png" alt="Downloads tab"><br>**Downloads**: progress, speed and your newest files | <img src="docs/images/shelf.png" alt="Shelf tab"><br>**Shelf**: drop files on the notch, drag them out later |
+| <img src="docs/images/calc.png" alt="Calculator tab"><br>**Calculator**: type while the notch is open | **And more**: Home, Now Playing, Calendar with one-click Join, Clipboard history, Terminal, AI usage, Devices, Mirror, status hints and a volume/battery HUD |
+
+## Get it
+
+1. Download the build for your system from the latest
+   [CI run](../../actions) (artifacts: `notch-utils-macos-arm64`, Windows zip, Linux tar.gz).
+2. macOS: move `notch-utils.app` to Applications, then right-click → Open the first time
+   (the build is ad-hoc signed). Windows: run `notch-utils.exe`. Linux: unpack; a `.desktop`
+   file is included.
+3. Hover the notch. Open **Settings** from the menu-bar icon to pick a module set and turn on
+   **Start at login**.
+
+Or build it yourself: `cargo run --release` (see [Build](#build)).
 
 ## Use
 
@@ -52,7 +97,9 @@ renderer = "software"           # software (~35 MB) | gpu (smoother animations, 
 
 [layout]
 mode = "tabs"                   # tabs | grid
-modules = ["timer", "calc", "stats", "clipboard", "shelf", "hud"]  # order shown; add "terminal", "calendar", "ai"
+modules = ["home", "music", "timer", "battery", "calendar", "shelf", "clipboard", "notes",
+           "calc", "terminal", "ai", "color", "awake", "mirror", "downloads", "devices",
+           "stats", "hud", "hints"]  # tab order; leave out what you don't need
 
 [modules.stats]
 view = "graphs"                 # graphs | detailed
@@ -85,8 +132,11 @@ Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modu
   open when done.
 - **Calculator**: macOS-style basic calculator (operator precedence, repeated `=`, `%`).
   Type on the keyboard while the notch is open.
-- **Stats**: CPU, memory and network with 60-second graphs; a detailed view adds per-core
-  CPU, disks, battery, temperatures and top processes. Measures only while visible.
+- **Stats**: CPU (per-core bars), memory with pressure, network, GPU (macOS, some Linux) and
+  disk, with 60-second charts; a detailed view adds disks, battery, temperatures and top
+  processes. Measures only while visible.
+- **Battery**: charge, charging state, time to full or empty, adapter wattage (macOS) and Low
+  Power Mode (opens the system setting; on Linux it switches power-profiles-daemon directly).
 - **Clipboard**: the last 50 copies (text and images), searchable, with pins. Click an
   item to copy it again. Copies marked secret by password managers are never recorded.
   History stays in memory unless you turn on saving (text only, never images).
@@ -94,7 +144,12 @@ Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modu
 - **Shelf**: drag files onto the notch to park them. Click one to copy it (then paste in
   Finder/Explorer), drag it out (macOS), show it in its folder or open it. Keeps references
   only, in memory. Also: `notch-utils --shelf FILE...`.
-- **Keep Awake**: keep the computer and display awake for 15 min, 1 h or until turned off.
+- **Keep Awake**: keep the computer awake for 15 min to 5 h or until turned off, with or
+  without the display.
+- **Notes**: plain-text notes saved as you type (`notes.json` in the app's data folder). The
+  first line is the title; pin the ones you need most.
+- **Color Picker**: pick a color anywhere on screen (macOS), copy it as HEX, RGB or HSL, and
+  keep your last five picks.
 - **Downloads**: downloads in progress (with speed) and your newest files; open, show or drag out.
 - **Devices**: connected Bluetooth devices with battery (AirPods left/right/case, Magic
   Trackpad/Keyboard/Mouse). macOS and Linux.
@@ -110,7 +165,8 @@ Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modu
   Ctrl+Shift+V.
 - **Calendar**: today's remaining events and tomorrow's from ICS links (Google "Secret
   address in iCal format", iCloud public link, Outlook published calendar). Peeks 15 minutes
-  before an event. The links are secrets: anyone who has one can read that calendar.
+  before an event; Home shows a **Join** button when the next event has a Meet, Zoom, Teams,
+  Webex or Whereby link. The links are secrets: anyone who has one can read that calendar.
 - **AI usage**: your Claude plan's 5-hour and weekly usage (Pro, Max, Ultra), read from
   Claude Code's status line. Click "Connect Claude Code" in the tab once: it adds
   `notch-utils --claude-statusline` to `~/.claude/settings.json` (backup first; an existing
@@ -129,14 +185,6 @@ Pick a set in Settings (Everyday, Developer, Minimal, Everything) or toggle modu
 - Builds are unsigned. On macOS, right-click → Open the first time.
 - `vendor/winit` is winit 0.30.13 with one fix for a macOS abort during rapid window
   resizes (marked "notch-utils patch").
-
-## Install
-
-- **macOS**: download `notch-utils-macos-arm64` from a CI run, unzip, move `notch-utils.app` to
-  Applications. It's ad-hoc signed, so the first time: right-click → Open.
-- **Windows**: unzip and run `notch-utils.exe`. **Linux**: unpack the tar.gz; a `.desktop` file
-  is included.
-- Turn on **Start at login** in Settings.
 
 ## Build
 
