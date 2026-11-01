@@ -2,6 +2,7 @@
 //! (plus one line in `ModuleView` in app.slint), and one line in `all()`.
 
 mod ai;
+mod awake;
 mod calc;
 mod calendar;
 mod clipboard;
@@ -113,6 +114,7 @@ pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
         shelf::Shelf::new(ctx.clone()),
         hud::HudModule::new(ctx.clone()),
         ai::AiUsage::new(ctx.clone()),
+        awake::Awake::new(ctx.clone()),
         calendar::CalendarModule::new(ctx.clone()),
         terminal::Terminal::new(ctx),
     ]

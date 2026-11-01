@@ -51,5 +51,5 @@ winit = { path = "vendor/winit" }
 softbuffer = { path = "vendor/softbuffer" }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Foundation", "Media_Control", "Storage_Streams", "Win32_Foundation", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_WinRT"] }
+windows = { version = "0.62", features = ["Foundation", "Media_Control", "Storage_Streams", "Win32_Foundation", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Power", "Win32_System_Variant", "Win32_System_WinRT"] }
 windows-core = "0.62"
