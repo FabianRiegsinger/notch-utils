@@ -32,6 +32,7 @@ export component SettingsWindow inherits Window {
 
     in-out property <int> open-mode;
     in-out property <bool> hotkey-enabled;
+    in-out property <bool> start-at-login;
     in-out property <string> hotkey;
     in-out property <int> collapse-delay;
     in-out property <int> display-target;
@@ -118,6 +119,14 @@ export component SettingsWindow inherits Window {
                             model: ["Hover to peek, click to open", "Hover opens fully", "Click only"];
                             current-index <=> root.open-mode;
                             selected => { root.changed(); }
+                        }
+                    }
+                    Row {
+                        label: "Start at login";
+                        CheckBox {
+                            text: "Open notch-utils when you log in";
+                            checked <=> root.start-at-login;
+                            toggled => { root.changed(); }
                         }
                     }
                     Row {

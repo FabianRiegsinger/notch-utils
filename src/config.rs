@@ -20,6 +20,7 @@ pub struct Behavior {
     pub hotkey_enabled: bool,
     pub hotkey: String,
     pub collapse_delay_ms: u64,
+    pub start_at_login: bool,
 }
 
 impl Default for Behavior {
@@ -29,6 +30,7 @@ impl Default for Behavior {
             hotkey_enabled: false,
             hotkey: "Alt+Space".into(),
             collapse_delay_ms: 300,
+            start_at_login: false,
         }
     }
 }

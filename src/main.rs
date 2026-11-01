@@ -1,4 +1,5 @@
 mod app;
+mod autostart;
 mod claude;
 mod config;
 mod hotkey;

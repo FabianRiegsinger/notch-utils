@@ -17,13 +17,13 @@ jobs:
         include:
           - os: macos-latest
             artifact: notch-utils-macos-arm64
-            bin: notch-utils
+            package: notch-utils-macos.zip
           - os: windows-latest
             artifact: notch-utils-windows-x64
-            bin: notch-utils.exe
+            package: notch-utils-windows-x64.zip
           - os: ubuntu-latest
             artifact: notch-utils-linux-x64
-            bin: notch-utils
+            package: notch-utils-linux-x64.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -38,7 +38,18 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo build --release
+      - name: Package (macOS app bundle)
+        if: runner.os == 'macOS'
+        run: scripts/bundle-macos.sh
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p pkg/notch-utils && cp target/release/notch-utils assets/notch-utils.desktop assets/appicon/icon-1024.png pkg/notch-utils/
+          tar -C pkg -czf target/release/notch-utils-linux-x64.tar.gz notch-utils
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path target/release/notch-utils.exe -DestinationPath target/release/notch-utils-windows-x64.zip
       - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.artifact }}
-          path: target/release/${{ matrix.bin }}
+          path: target/release/${{ matrix.package }}

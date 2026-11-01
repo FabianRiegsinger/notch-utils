@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=notch-utils
+Comment=Interactive notch with lots of utility
+Exec=notch-utils
+Icon=notch-utils
+Categories=Utility;
+StartupNotify=false

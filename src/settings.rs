@@ -114,6 +114,7 @@ pub fn module_entries(cfg: &Config, all: &[Rc<dyn Module>]) -> Vec<ModuleEntry> 
 pub fn to_ui(ui: &SettingsWindow, cfg: &Config, all: &[Rc<dyn Module>]) {
     ui.set_open_mode(index(&OPEN, &cfg.behavior.open_mode));
     ui.set_hotkey_enabled(cfg.behavior.hotkey_enabled);
+    ui.set_start_at_login(cfg.behavior.start_at_login);
     ui.set_hotkey(cfg.behavior.hotkey.as_str().into());
     ui.set_collapse_delay(cfg.behavior.collapse_delay_ms.min(5000) as i32);
     ui.set_display_target(index(&DISPLAY, &cfg.display.target));
@@ -146,6 +147,7 @@ pub fn from_ui(ui: &SettingsWindow, base: &Config) -> Config {
     let mut c = base.clone();
     c.behavior.open_mode = pick(&OPEN, ui.get_open_mode());
     c.behavior.hotkey_enabled = ui.get_hotkey_enabled();
+    c.behavior.start_at_login = ui.get_start_at_login();
     c.behavior.hotkey = ui.get_hotkey().trim().to_string();
     c.behavior.collapse_delay_ms = ui.get_collapse_delay().max(0) as u64;
     c.display.target = pick(&DISPLAY, ui.get_display_target());

@@ -228,6 +228,10 @@ impl App {
             let c = self.cfg.borrow();
             (c.behavior.hotkey_enabled, c.behavior.hotkey.clone())
         };
+        let login = self.cfg.borrow().behavior.start_at_login;
+        if let Err(e) = crate::autostart::sync(login) {
+            problems.push(e);
+        }
         if let Some(hk) = self.hotkey.get()
             && let Err(e) = hk.set(enabled, &spec)
         {
