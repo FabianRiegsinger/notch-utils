@@ -91,6 +91,7 @@ pub fn watch(on: impl Fn(Update) + Send + 'static) -> Option<Watcher> {
                 }
                 on(u);
             }
+            on(Update::Unavailable("playerctl exited".into()));
         })
         .ok()?;
     Some(Watcher(child))

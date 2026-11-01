@@ -19,16 +19,16 @@ fn read(
     let Ok(session) = mgr.GetCurrentSession() else {
         return Ok(None);
     };
-    let props = session.TryGetMediaPropertiesAsync()?.get()?;
+    let props = session.TryGetMediaPropertiesAsync()?.join()?;
     let tl = session.GetTimelineProperties()?;
     let playing = session.GetPlaybackInfo()?.PlaybackStatus()? == Status::Playing;
     let secs = |t: windows::Foundation::TimeSpan| t.Duration as f64 / 10_000_000.0;
     let art = if want_art {
         props.Thumbnail().ok().and_then(|r| {
-            let stream = r.OpenReadAsync().ok()?.get().ok()?;
+            let stream = r.OpenReadAsync().ok()?.join().ok()?;
             let size = stream.Size().ok()? as u32;
             let reader = DataReader::CreateDataReader(&stream).ok()?;
-            reader.LoadAsync(size).ok()?.get().ok()?;
+            reader.LoadAsync(size).ok()?.join().ok()?;
             let mut buf = vec![0u8; size as usize];
             reader.ReadBytes(&mut buf).ok()?;
             Some(buf)
@@ -69,7 +69,7 @@ pub fn watch(on: impl Fn(Update) + Send + 'static) -> Option<Watcher> {
         .spawn(move || {
             // SAFETY: COM init for this thread's lifetime.
             let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-            let mgr = match Manager::RequestAsync().and_then(|op| op.get()) {
+            let mgr = match Manager::RequestAsync().and_then(|op| op.join()) {
                 Ok(m) => m,
                 Err(e) => return on(Update::Unavailable(e.to_string())),
             };
@@ -109,11 +109,11 @@ pub fn command(cmd: Cmd) {
         // SAFETY: COM init for this short-lived thread.
         let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
         let run = || -> windows_core::Result<()> {
-            let session = Manager::RequestAsync()?.get()?.GetCurrentSession()?;
+            let session = Manager::RequestAsync()?.join()?.GetCurrentSession()?;
             match cmd {
-                Cmd::PlayPause => session.TryTogglePlayPauseAsync()?.get()?,
-                Cmd::Next => session.TrySkipNextAsync()?.get()?,
-                Cmd::Previous => session.TrySkipPreviousAsync()?.get()?,
+                Cmd::PlayPause => session.TryTogglePlayPauseAsync()?.join()?,
+                Cmd::Next => session.TrySkipNextAsync()?.join()?,
+                Cmd::Previous => session.TrySkipPreviousAsync()?.join()?,
             };
             Ok(())
         };
