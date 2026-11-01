@@ -214,6 +214,11 @@ impl Notch {
             self.ui.set_activity_level(a.level.unwrap_or(-1.0));
             self.ui.set_activity_text(a.text.as_str().into());
             self.ui.set_activity_warn(a.warn);
+            self.ui.set_activity_has_image(a.image.is_some());
+            if let Some(img) = &a.image {
+                self.ui.set_activity_image(img.clone());
+            }
+            self.ui.set_activity_pulse(a.pulse as i32);
         }
         let before = self.size_for(State::Collapsed);
         if self.has_activity.replace(a.is_some()) != a.is_some() {

@@ -44,6 +44,7 @@ pub fn volume_hud(level: f32, muted: bool) -> Hud {
             format!("{:.0}%", level * 100.0)
         },
         warn: false,
+        ..Default::default()
     }
 }
 
@@ -69,6 +70,7 @@ pub fn battery_hud(prev: Option<Battery>, now: Battery) -> Option<Hud> {
                 format!("On battery {pct}")
             },
             warn: false,
+            ..Default::default()
         });
     }
     if now.full && !prev.full {
@@ -77,6 +79,7 @@ pub fn battery_hud(prev: Option<Battery>, now: Battery) -> Option<Hud> {
             level: Some(1.0),
             text: "Fully charged".into(),
             warn: false,
+            ..Default::default()
         });
     }
     if !now.plugged && LOW.iter().any(|&l| prev.percent > l && now.percent <= l) {
@@ -85,6 +88,7 @@ pub fn battery_hud(prev: Option<Battery>, now: Battery) -> Option<Hud> {
             level: Some(now.percent / 100.0),
             text: format!("Low battery {pct}"),
             warn: true,
+            ..Default::default()
         });
     }
     None

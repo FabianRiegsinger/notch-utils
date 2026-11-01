@@ -62,7 +62,7 @@ impl Module for Home {
     }
 
     fn embeds(&self) -> &'static [&'static str] {
-        &["timer", "calendar", "stats", "ai"]
+        &["timer", "calendar", "stats", "ai", "music"]
     }
 
     fn attach(&self, ui: &NotchWindow) {

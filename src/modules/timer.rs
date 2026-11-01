@@ -217,6 +217,7 @@ impl Module for Timer {
                 level: None,
                 text: "Done".into(),
                 warn: true,
+                ..Default::default()
             });
         }
         c.running().then(|| super::Hud {
@@ -226,6 +227,7 @@ impl Module for Timer {
                 .then(|| c.shown(now).as_secs_f32() / c.duration.as_secs_f32().max(1.0)),
             text: format(c.shown(now)),
             warn: false,
+            ..Default::default()
         })
     }
 

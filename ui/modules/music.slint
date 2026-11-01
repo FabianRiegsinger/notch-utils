@@ -1,0 +1,111 @@
+import { Palette, Icon } from "../components.slint";
+
+export global MusicState {
+    in property <bool> has-track;
+    in property <bool> unavailable;
+    in property <string> title;
+    in property <string> artist;
+    in property <bool> playing;
+    in property <float> progress;
+    in property <string> elapsed;
+    in property <string> remaining;
+    in property <bool> has-cover;
+    in property <image> cover;
+    in property <color> glow: #ff375f;
+    callback play-pause();
+    callback next();
+    callback previous();
+}
+
+component Control inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <length> size: 18px;
+    callback clicked();
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    background: touch.pressed ? Palette.surface-hover : touch.has-hover ? Palette.surface : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    Icon { width: root.size; height: root.size; name: root.icon; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// Cover with a soft glow in its own color; a music note when there is no artwork.
+export component Cover inherits Rectangle {
+    in property <length> size: 128px;
+    width: root.size;
+    height: root.size;
+    border-radius: root.size / 6;
+    drop-shadow-blur: root.size / 4;
+    drop-shadow-color: MusicState.glow.with-alpha(MusicState.playing ? 0.55 : 0.25);
+    background: MusicState.has-cover ? #000 : MusicState.glow.darker(0.4);
+    clip: true;
+    if MusicState.has-cover: Image {
+        width: 100%;
+        height: 100%;
+        source: MusicState.cover;
+        image-fit: cover;
+    }
+    if !MusicState.has-cover: Icon { width: root.size / 3; height: root.size / 3; name: "music"; tint: #ffffffcc; }
+}
+
+export component Controls inherits HorizontalLayout {
+    in property <length> spacing-x: 18px;
+    alignment: center;
+    spacing: root.spacing-x;
+    Control { icon: "previous"; label: "Previous track"; size: 15px; clicked => { MusicState.previous(); } }
+    Control { icon: MusicState.playing ? "pause" : "play"; label: MusicState.playing ? "Pause" : "Play"; size: 20px; clicked => { MusicState.play-pause(); } }
+    Control { icon: "next"; label: "Next track"; size: 15px; clicked => { MusicState.next(); } }
+}
+
+export component MusicView inherits HorizontalLayout {
+    spacing: 22px;
+    padding-left: 6px;
+    padding-right: 6px;
+
+    if !MusicState.has-track: Text {
+        horizontal-stretch: 1;
+        text: MusicState.unavailable ? "Now Playing isn't available on this system." : "Nothing playing";
+        color: Palette.fg-dim;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    if MusicState.has-track: VerticalLayout {
+        alignment: center;
+        Cover { size: 128px; }
+    }
+
+    if MusicState.has-track: VerticalLayout {
+        horizontal-stretch: 1;
+        alignment: center;
+        spacing: 6px;
+        Text { text: MusicState.title; color: Palette.fg; font-size: 17px; font-weight: 600; overflow: elide; }
+        Text { text: MusicState.artist; color: Palette.fg-dim; font-size: 13px; overflow: elide; }
+        Rectangle { height: 14px; }
+        HorizontalLayout {
+            spacing: 10px;
+            Text { text: MusicState.elapsed; color: Palette.fg-dim; font-size: 11px; vertical-alignment: center; }
+            Rectangle {
+                horizontal-stretch: 1;
+                height: 4px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 2px;
+                background: Palette.surface-hover;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * clamp(MusicState.progress, 0, 1);
+                    border-radius: 2px;
+                    background: Palette.fg;
+                    animate width { duration: 900ms; }
+                }
+            }
+            Text { text: MusicState.remaining; color: Palette.fg-dim; font-size: 11px; vertical-alignment: center; }
+        }
+        Controls { }
+    }
+}

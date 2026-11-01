@@ -205,6 +205,7 @@ impl Module for AiUsage {
             level: None,
             text: format!("{:.0}%", w.used_percentage),
             warn: w.used_percentage >= 95.0,
+            ..Default::default()
         })
     }
 

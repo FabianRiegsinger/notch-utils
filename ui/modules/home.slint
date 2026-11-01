@@ -3,6 +3,7 @@ import { TimerState } from "timer.slint";
 import { CalState, WeekStrip } from "calendar.slint";
 import { StatsState } from "stats.slint";
 import { AiState } from "ai.slint";
+import { MusicState, Cover, Controls } from "music.slint";
 
 export global HomeState {
     in property <string> date;
@@ -54,8 +55,18 @@ export component HomeView inherits HorizontalLayout {
     padding-left: 4px;
     padding-right: 4px;
 
+    // Now Playing (while a track is loaded) instead of the timer
+    if MusicState.has-track: VerticalLayout {
+        width: 150px;
+        alignment: center;
+        spacing: 8px;
+        HorizontalLayout { alignment: center; Cover { size: 76px; } }
+        Text { text: MusicState.title; color: Palette.fg; font-size: 12px; font-weight: 600; horizontal-alignment: center; overflow: elide; }
+        Controls { spacing-x: 2px; }
+    }
+
     // Timer
-    VerticalLayout {
+    if !MusicState.has-track: VerticalLayout {
         width: 130px;
         alignment: center;
         spacing: 10px;

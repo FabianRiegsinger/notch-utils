@@ -7,6 +7,7 @@ mod calendar;
 mod clipboard;
 mod home;
 mod hud;
+mod music;
 mod shelf;
 mod stats;
 mod terminal;
@@ -48,7 +49,7 @@ impl KeyInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Hud {
     pub icon: &'static str,
     /// 0..1 shows a bar.
@@ -56,6 +57,10 @@ pub struct Hud {
     pub text: String,
     /// Shown in red.
     pub warn: bool,
+    /// Picture instead of the icon (album cover).
+    pub image: Option<slint::Image>,
+    /// Changes once a second while music plays; drives the equalizer bars.
+    pub pulse: u32,
 }
 
 pub trait Module {
@@ -100,6 +105,7 @@ pub trait Module {
 pub fn all(ctx: Ctx) -> Vec<Rc<dyn Module>> {
     vec![
         home::Home::new(ctx.clone()),
+        music::Music::new(ctx.clone()),
         timer::Timer::new(ctx.clone()),
         calc::Calc::new(ctx.clone()),
         stats::Stats::new(ctx.clone()),

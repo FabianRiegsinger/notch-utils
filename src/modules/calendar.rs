@@ -562,6 +562,7 @@ impl Module for CalendarModule {
             level: None,
             text: format!("{} min", mins.max(1)),
             warn: false,
+            ..Default::default()
         })
     }
 
