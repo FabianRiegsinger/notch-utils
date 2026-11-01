@@ -50,6 +50,10 @@ export component SettingsWindow inherits Window {
     in-out property <bool> clip-persist;
     in-out property <bool> hud-volume;
     in-out property <bool> hud-battery;
+    in-out property <bool> hint-caps;
+    in-out property <bool> hint-mic-camera;
+    in-out property <bool> hint-connection;
+    in-out property <bool> hint-focus;
     in property <string> error;
     in property <string> config-path;
 
@@ -298,7 +302,7 @@ export component SettingsWindow inherits Window {
             }
 
             GroupBox {
-                title: "Volume & battery HUD";
+                title: "Hints beside the notch";
                 VerticalLayout {
                     spacing: 8px;
                     CheckBox {
@@ -311,6 +315,10 @@ export component SettingsWindow inherits Window {
                         checked <=> root.hud-battery;
                         toggled => { root.changed(); }
                     }
+                    CheckBox { text: "Caps Lock on/off"; checked <=> root.hint-caps; toggled => { root.changed(); } }
+                    CheckBox { text: "Microphone or camera in use"; checked <=> root.hint-mic-camera; toggled => { root.changed(); } }
+                    CheckBox { text: "Connection lost / back"; checked <=> root.hint-connection; toggled => { root.changed(); } }
+                    CheckBox { text: "Focus on/off (macOS, needs Full Disk Access)"; checked <=> root.hint-focus; toggled => { root.changed(); } }
                 }
             }
 

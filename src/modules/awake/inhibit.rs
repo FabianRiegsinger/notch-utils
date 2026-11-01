@@ -123,7 +123,10 @@ pub use imp::Inhibitor;
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     fn assertions() -> String {
-        let out = std::process::Command::new("pmset").args(["-g", "assertions"]).output().unwrap();
+        let out = std::process::Command::new("pmset")
+            .args(["-g", "assertions"])
+            .output()
+            .unwrap();
         String::from_utf8_lossy(&out.stdout).into_owned()
     }
 

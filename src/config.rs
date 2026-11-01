@@ -125,13 +125,16 @@ impl Default for Layout {
             mode: LayoutMode::default(),
             modules: [
                 "home",
+                "music",
                 "timer",
                 "calc",
                 "stats",
                 "clipboard",
                 "shelf",
                 "calendar",
+                "awake",
                 "hud",
+                "hints",
             ]
             .map(String::from)
             .to_vec(),
@@ -155,6 +158,28 @@ pub struct Modules {
     pub clipboard: Clipboard,
     pub hud: Hud,
     pub calendar: Calendar,
+    pub hints: Hints,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Hints {
+    pub caps_lock: bool,
+    pub mic_camera: bool,
+    pub connection: bool,
+    /// macOS only, and only with Full Disk Access.
+    pub focus: bool,
+}
+
+impl Default for Hints {
+    fn default() -> Self {
+        Self {
+            caps_lock: true,
+            mic_camera: true,
+            connection: true,
+            focus: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -280,13 +305,16 @@ mod tests {
             c.layout.modules,
             [
                 "home",
+                "music",
                 "timer",
                 "calc",
                 "stats",
                 "clipboard",
                 "shelf",
                 "calendar",
-                "hud"
+                "awake",
+                "hud",
+                "hints"
             ]
         );
         assert!(c.modules.hud.volume && c.modules.hud.battery);

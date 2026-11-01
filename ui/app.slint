@@ -74,6 +74,9 @@ component Activity inherits Rectangle {
         : root.icon == "ai" ? Palette.purple
         : root.icon == "music" ? #ff375f
         : root.icon == "awake" ? Palette.yellow
+        : root.icon == "mic" ? Palette.orange
+        : root.icon == "camera" ? Palette.green
+        : root.icon == "moon" ? Palette.purple
         : Palette.fg;
     in property <image> image;
     in property <bool> has-image;

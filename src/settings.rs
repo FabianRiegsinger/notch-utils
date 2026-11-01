@@ -25,12 +25,22 @@ const STATS_VIEW: [StatsView; 2] = [StatsView::Graphs, StatsView::Detailed];
 pub const SETS: [(&str, &str, &[&str]); 4] = [
     (
         "Everyday",
-        "Home, timer, calendar, shelf, clipboard and the volume/battery HUD",
-        &["home", "timer", "calendar", "shelf", "clipboard", "hud"],
+        "Music, timer, calendar, shelf, clipboard, Keep Awake and hints",
+        &[
+            "home",
+            "music",
+            "timer",
+            "calendar",
+            "shelf",
+            "clipboard",
+            "awake",
+            "hud",
+            "hints",
+        ],
     ),
     (
         "Developer",
-        "Terminal, system stats, AI usage, clipboard and a calculator",
+        "Terminal, system stats, AI usage, clipboard, calculator and Keep Awake",
         &[
             "home",
             "terminal",
@@ -38,19 +48,22 @@ pub const SETS: [(&str, &str, &[&str]); 4] = [
             "ai",
             "clipboard",
             "calc",
+            "awake",
             "hud",
+            "hints",
         ],
     ),
     (
         "Minimal",
-        "Just home, a timer and the HUD",
-        &["home", "timer", "hud"],
+        "Just home, a timer and the hints",
+        &["home", "timer", "hud", "hints"],
     ),
     (
         "Everything",
         "Every module",
         &[
             "home",
+            "music",
             "timer",
             "calc",
             "stats",
@@ -59,7 +72,9 @@ pub const SETS: [(&str, &str, &[&str]); 4] = [
             "terminal",
             "calendar",
             "ai",
+            "awake",
             "hud",
+            "hints",
         ],
     ),
 ];
@@ -140,6 +155,10 @@ pub fn to_ui(ui: &SettingsWindow, cfg: &Config, all: &[Rc<dyn Module>]) {
     ui.set_clip_persist(cfg.modules.clipboard.persist);
     ui.set_hud_volume(cfg.modules.hud.volume);
     ui.set_hud_battery(cfg.modules.hud.battery);
+    ui.set_hint_caps(cfg.modules.hints.caps_lock);
+    ui.set_hint_mic_camera(cfg.modules.hints.mic_camera);
+    ui.set_hint_connection(cfg.modules.hints.connection);
+    ui.set_hint_focus(cfg.modules.hints.focus);
 }
 
 /// Start from `base` so keys the window doesn't show are kept.
@@ -175,6 +194,10 @@ pub fn from_ui(ui: &SettingsWindow, base: &Config) -> Config {
         .collect();
     c.modules.hud.volume = ui.get_hud_volume();
     c.modules.hud.battery = ui.get_hud_battery();
+    c.modules.hints.caps_lock = ui.get_hint_caps();
+    c.modules.hints.mic_camera = ui.get_hint_mic_camera();
+    c.modules.hints.connection = ui.get_hint_connection();
+    c.modules.hints.focus = ui.get_hint_focus();
     c
 }
 
