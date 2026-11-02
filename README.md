@@ -46,8 +46,9 @@ your screen:
 
 ## Get it
 
-1. Download the build for your system from the latest
-   [CI run](../../actions) (artifacts: `notch-utils-macos-arm64`, Windows zip, Linux tar.gz).
+1. Download the file for your system from the latest [release](../../releases/latest):
+   `…-macos-arm64.zip`, `…-windows-x64.zip` or `…-linux-x64.tar.gz` (checksums in
+   `SHA256SUMS.txt`). Builds of every commit are also attached to each [CI run](../../actions).
 2. macOS: move `notch-utils.app` to Applications, then right-click → Open the first time
    (the build is ad-hoc signed). Windows: run `notch-utils.exe`. Linux: unpack; a `.desktop`
    file is included.
@@ -195,6 +196,11 @@ scripts/bundle-macos.sh      # build target/release/notch-utils.app (+ zip)
 
 Linux needs `libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libdbus-1-dev`.
 CI builds all three platforms on every push; binaries are attached to each run as artifacts.
+
+To publish a release, run `scripts/release.sh 0.2.0` on an up-to-date `main`: it sets the
+version in `Cargo.toml`, commits, tags `v0.2.0` and pushes. CI then builds macOS, Windows and
+Linux and creates the GitHub Release with the packages and checksums attached. A suffix such as
+`0.2.0-beta.1` makes a pre-release.
 
 ## License
 
